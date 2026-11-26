@@ -1,629 +1,648 @@
 #include <iostream>
 #include <vector>
-#include <string>
 #include <cmath>
 #include <cassert>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
+#include <string>
 
 using namespace std;
 
 // ============================================================================
-// Laboratorul 2: Probleme clasice de sah rezolvate in Paradigma Functionala
-// ============================================================================
-// Cerinte acoperite conform conditii.md (10 puncte):
-//   1. Plasarea numarului maxim de NEBUNI non-atacatori (1 punct)
-//   2. Plasarea numarului maxim de TURNURI non-atacatori (1 punct)
-//   3. Plasarea numarului maxim de CAI non-atacatori (2 puncte)
-//   4. Plasarea numarului maxim de REGINE non-atacatori (3 puncte)
-//   5. Cautarea unui DRUM AL CALULUI (Knight's Tour) complet (3 puncte)
-//
-// Principii de Paradigma Functionala aplicate strict:
-//   - Zero bucle repetitive (fara 'for', fara 'while').
-//   - Imutabilitate: fara mutatii in-place (fara ++, fara +=); fiecare pas
-//     creeaza o stare noua transmisa prin valoare / returnata recursiv.
-//   - Functii pure si recursivitate structurala.
+// LABORATORUL 2 - PARADIGMA FUNCTIONALA (C++)
+// Probleme clasice de sah rezolvate STRICT prin recursivitate pura
 // ============================================================================
 
-struct Coord {
+// O coordonata pe tabla de sah: r = rand (linie), c = coloana
+struct Coord
+{
     int r;
     int c;
-
-    bool operator==(const Coord& other) const {
-        return r == other.r && c == other.c;
-    }
 };
 
-using Placement = vector<Coord>;
+// O configuratie de piese plasate pe tabla (ex: lista de pozitii)
+using Lista = vector<Coord>;
 
 // ============================================================================
-// Sectiunea 0: Primitive Functionale Pure (fara bucle, fara ++, fara +=)
+// FUNCTII AJUTATOARE PURE (FARA BUCLE, FARA i++, DOAR RETURN)
 // ============================================================================
 
-bool contine_int(const vector<int>& v, int val, size_t idx) {
-    if (idx >= v.size()) return false;
-    if (v[idx] == val) return true;
-    return contine_int(v, val, idx + 1);
+// Verifica recursiv daca doua pozitii sunt identice
+bool sunt_egale(Coord a, Coord b)
+{
+    return a.r == b.r && a.c == b.c;
 }
 
-bool contine_coord(const Placement& v, Coord val, size_t idx) {
-    if (idx >= v.size()) return false;
-    if (v[idx] == val) return true;
-    return contine_coord(v, val, idx + 1);
+// Verifica recursiv daca un numar 'val' exista intr-o lista de numere
+bool contine_nr(vector<int> v, int val, int i = 0)
+{
+    if (i >= (int)v.size())
+        return false; // Am ajuns la final -> nu exista
+    if (v[i] == val)
+        return true;                  // L-am gasit -> adevarat
+    return contine_nr(v, val, i + 1); // Cautam mai departe la i + 1
 }
 
-template <typename T>
-vector<T> adauga(vector<T> v, const T& elem) {
-    v.push_back(elem);
+// Verifica recursiv daca o coordonata 'p' exista in lista de pozitii
+bool contine_poz(Lista v, Coord p, int i = 0)
+{
+    if (i >= (int)v.size())
+        return false;
+    if (sunt_egale(v[i], p))
+        return true;
+    return contine_poz(v, p, i + 1);
+}
+
+// Returneaza o COPIE noua a listei cu elementul 'p' adaugat la final
+// (Lista originala a apelantului ramane neatinsa pe stiva!)
+Lista adauga_poz(Lista v, Coord p)
+{
+    v.push_back(p);
     return v;
 }
 
-template <typename T>
-vector<T> uneste(vector<T> a, const vector<T>& b) {
+// Returneaza o COPIE noua a vectorului de numere cu 'x' adaugat la final
+vector<int> adauga_nr(vector<int> v, int x)
+{
+    v.push_back(x);
+    return v;
+}
+
+// Uneste doua liste de solutii intr-o singura lista noua
+vector<Lista> uneste(vector<Lista> a, vector<Lista> b)
+{
     a.insert(a.end(), b.begin(), b.end());
     return a;
 }
 
-string repeta_str(const string& s, int count) {
-    if (count <= 0) return "";
-    return s + repeta_str(s, count - 1);
-}
-
-string format_int_width(int val, int width) {
-    ostringstream oss;
-    oss << setw(width) << val;
-    return oss.str();
+// Uneste doua liste de pozitii (folosit la combinarea nebunilor albi cu cei negri)
+Lista imbina_poz(Lista a, Lista b)
+{
+    a.insert(a.end(), b.begin(), b.end());
+    return a;
 }
 
 // ============================================================================
-// Functii Pure pentru Afisarea Tablei de Sah si a Drumului Calului
+// FUNCTII PURE PENTRU AFISAREA TABLEI DE SAH (RECURSIV)
 // ============================================================================
 
-string format_header_cols(int col, int n, int width) {
-    if (col >= n) return "";
-    string sep = (col + 1 < n) ? " " : "";
-    return format_int_width(col, width) + sep + format_header_cols(col + 1, n, width);
+// Afiseaza celulele de pe randul 'r', de la coloana 'c' pana la n-1
+void afiseaza_rand(int r, int c, int n, Lista piese, char simbol)
+{
+    if (c >= n)
+        return;
+    if (contine_poz(piese, {r, c}))
+    {
+        cout << " " << simbol << " ";
+    }
+    else
+    {
+        cout << " . ";
+    }
+    afiseaza_rand(r, c + 1, n, piese, simbol);
 }
 
-string format_board_row(int r, int c, int n, const Placement& pieces, const string& symbol) {
-    if (c >= n) return "";
-    string cell = contine_coord(pieces, {r, c}, 0) ? (" " + symbol) : " .";
-    string sep = (c + 1 < n) ? " " : "";
-    return cell + sep + format_board_row(r, c + 1, n, pieces, symbol);
+// Afiseaza tabla n x n rand cu rand (de la r = 0 la n - 1)
+void afiseaza_tabla(int n, Lista piese, char simbol, int r = 0)
+{
+    if (r >= n)
+        return;
+    cout << "  " << r << " |";
+    afiseaza_rand(r, 0, n, piese, simbol);
+    cout << "\n";
+    afiseaza_tabla(n, piese, simbol, r + 1);
 }
 
-string format_board_rows(int r, int n, const Placement& pieces, const string& symbol) {
-    if (r >= n) return "";
-    string line = format_int_width(r, 2) + " | " + format_board_row(r, 0, n, pieces, symbol);
-    string rest = format_board_rows(r + 1, n, pieces, symbol);
-    return rest.empty() ? line : (line + "\n" + rest);
+// Cauta al catelea pas (1..64) este pozitia 'p' in drumul calului
+int gaseste_pas(Lista drum, Coord p, int i = 0)
+{
+    if (i >= (int)drum.size())
+        return 0;
+    if (sunt_egale(drum[i], p))
+        return i + 1;
+    return gaseste_pas(drum, p, i + 1);
 }
 
-string format_board(int n, const Placement& pieces, const string& symbol) {
-    string header = "    " + format_header_cols(0, n, 2);
-    string sep = "    " + repeta_str("-", 3 * n);
-    return header + "\n" + sep + "\n" + format_board_rows(0, n, pieces, symbol);
+// Afiseaza un rand din matricea pasilor pentru Drumul Calului
+void afiseaza_rand_drum(int r, int c, int n, Lista drum)
+{
+    if (c >= n)
+        return;
+    int pas = gaseste_pas(drum, {r, c});
+    if (pas < 10)
+        cout << "  " << pas << " ";
+    else
+        cout << " " << pas << " ";
+    afiseaza_rand_drum(r, c + 1, n, drum);
 }
 
-int find_step_rec(const Placement& path, Coord target, size_t idx) {
-    if (idx >= path.size()) return 0;
-    if (path[idx] == target) return (int)idx + 1;
-    return find_step_rec(path, target, idx + 1);
-}
-
-string format_tour_row(int r, int c, int n, const Placement& path) {
-    if (c >= n) return "";
-    int step = find_step_rec(path, {r, c}, 0);
-    string sep = (c + 1 < n) ? " " : "";
-    return format_int_width(step, 3) + sep + format_tour_row(r, c + 1, n, path);
-}
-
-string format_tour_rows(int r, int n, const Placement& path) {
-    if (r >= n) return "";
-    string line = format_int_width(r, 2) + " | " + format_tour_row(r, 0, n, path);
-    string rest = format_tour_rows(r + 1, n, path);
-    return rest.empty() ? line : (line + "\n" + rest);
-}
-
-string format_knight_tour(int n, const Placement& path) {
-    string header = "    " + format_header_cols(0, n, 3);
-    string sep = "    " + repeta_str("-", 4 * n);
-    return header + "\n" + sep + "\n" + format_tour_rows(0, n, path);
+// Afiseaza toata matricea drumului calului (1 -> n*n)
+void afiseaza_drum_cal(int n, Lista drum, int r = 0)
+{
+    if (r >= n)
+        return;
+    cout << "  " << r << " |";
+    afiseaza_rand_drum(r, 0, n, drum);
+    cout << "\n";
+    afiseaza_drum_cal(n, drum, r + 1);
 }
 
 // ============================================================================
-// Problema 1: Numarul Maxim de Nebuni (Bishops) non-atacatori (1 punct)
+// [1] NEBUNI (Bishops) - Maxim 2*n - 2 nebuni pe tabla n x n (1 punct)
 // ============================================================================
-// - Nebunii pe patrate albe ((r+c)%2 == 0) si cei pe patrate negre ((r+c)%2 == 1)
-//   sunt complet independenti (nu se pot ataca reciproc).
-// - Max nebuni pe tabla n x n (n >= 2): 2n - 2 (cate n - 1 pe fiecare culoare).
-// - Solutiile totale sunt Produsul Cartezian al solutiilor albe si negre (256 pt n=8).
+// IDEE SIMPLA:
+// - Pe fiecare diagonala principala (d = r - c), poate sta CEL MULT UN nebun.
+// - Nebunii de pe patrate albe (d par) NU ii ataca NICIODATA pe cei de pe
+//   patrate negre (d impar), deci ii rezolvam separat si apoi ii combinam!
+// - Doua piese au aceeasi diagonala secundara daca au acelasi (r + c).
 
-vector<Coord> gen_squares_color(int n, int r, int c, int color) {
-    if (r >= n) return {};
-    if (c >= n) return gen_squares_color(n, r + 1, 0, color);
-    vector<Coord> rest = gen_squares_color(n, r, c + 1, color);
-    if ((r + c) % 2 == color) {
-        return uneste(vector<Coord>{{r, c}}, rest);
+vector<Lista> nebuni_pe_culoare(int n, int d, int max_d, int ramasi, Lista plasati, vector<int> anti_folosite);
+
+// Incearca pe rand fiecare patrat (r, c = r - d) de pe diagonala curenta 'd'
+vector<Lista> incearca_patrate_diagonala(
+    int n, int d, int max_d,
+    int r, int max_r,
+    int ramasi, Lista plasati, vector<int> anti_folosite)
+{
+    if (r > max_r)
+        return {}; // Am terminat toate patratele de pe diagonala d
+
+    int c = r - d;    // Coloana corespunzatoare randului r pe diagonala d
+    int anti = r + c; // Diagonala secundara a acestui patrat
+
+    // Ramura 1: Daca diagonala secundara 'anti' este libera, punem un nebun aici
+    vector<Lista> cu_nebun;
+    if (!contine_nr(anti_folosite, anti))
+    {
+        cu_nebun = nebuni_pe_culoare(
+            n, d + 2, max_d, ramasi - 1,
+            adauga_poz(plasati, {r, c}),
+            adauga_nr(anti_folosite, anti));
+    }
+
+    // Ramura 2: Trecem la urmatorul patrat de pe aceeasi diagonala (r + 1)
+    vector<Lista> urm_patrat = incearca_patrate_diagonala(n, d, max_d, r + 1, max_r, ramasi, plasati, anti_folosite);
+    return uneste(cu_nebun, urm_patrat);
+}
+
+// Parcurge diagonalele unei singure culori din 2 in 2 (d + 2)
+vector<Lista> nebuni_pe_culoare(int n, int d, int max_d, int ramasi, Lista plasati, vector<int> anti_folosite)
+{
+    if (ramasi == 0)
+        return {plasati}; // Succes: am plasat toti nebunii ceruti
+    if (d > max_d)
+        return {}; // Nu mai avem diagonale
+
+    // Daca au ramas mai putine diagonale decat nebuni de pus, oprim devreme
+    int diag_ramase = (max_d - d) / 2 + 1;
+    if (diag_ramase < ramasi)
+        return {};
+
+    // Limitele randului r pe diagonala d (astfel incat 0 <= r < n si 0 <= r - d < n)
+    int r_start = (d > 0) ? d : 0;
+    int r_end = (n - 1 + d < n - 1) ? (n - 1 + d) : (n - 1);
+
+    // Optiunea A: punem nebun pe diagonala d
+    vector<Lista> ramura_cu = incearca_patrate_diagonala(n, d, max_d, r_start, r_end, ramasi, plasati, anti_folosite);
+    // Optiunea B: sarim peste diagonala d fara sa punem nebun pe ea
+    vector<Lista> ramura_fara = nebuni_pe_culoare(n, d + 2, max_d, ramasi, plasati, anti_folosite);
+
+    return uneste(ramura_cu, ramura_fara);
+}
+
+// Combina o solutie de nebuni albi cu fiecare solutie de nebuni negri
+vector<Lista> combina_o_solutie_alba(Lista sol_alba, vector<Lista> negri, int j = 0)
+{
+    if (j >= (int)negri.size())
+        return {};
+    vector<Lista> prima = {imbina_poz(sol_alba, negri[j])};
+    return uneste(prima, combina_o_solutie_alba(sol_alba, negri, j + 1));
+}
+
+// Produsul cartezian dintre toate solutiile albe si toate solutiile negre
+vector<Lista> combina_albi_cu_negri(vector<Lista> albi, vector<Lista> negri, int i = 0)
+{
+    if (i >= (int)albi.size())
+        return {};
+    return uneste(combina_o_solutie_alba(albi[i], negri, 0), combina_albi_cu_negri(albi, negri, i + 1));
+}
+
+// Functia principala pentru Nebuni
+vector<Lista> rezolva_nebuni(int n)
+{
+    if (n <= 0)
+        return {};
+    if (n == 1)
+        return {{{0, 0}}};
+
+    // Prima diagonala alba (para) si prima diagonala neagra (impara)
+    int d_alb = (n % 2 == 0) ? -(n - 2) : -(n - 1);
+    int d_negru = (n % 2 == 0) ? -(n - 1) : -(n - 2);
+
+    vector<Lista> albi = nebuni_pe_culoare(n, d_alb, -d_alb, n - 1, {}, {});
+    vector<Lista> negri = nebuni_pe_culoare(n, d_negru, -d_negru, n - 1, {}, {});
+    return combina_albi_cu_negri(albi, negri, 0);
+}
+
+// ============================================================================
+// [2] TURNURI (Rooks) - Maxim n turnuri pe tabla n x n (1 punct)
+// ============================================================================
+// IDEE SIMPLA:
+// - Turnul ataca pe linie si pe coloana.
+// - Punem exact un turn pe fiecare rand (r = 0, 1, ..., n-1) pe o coloana
+//   care nu a fost inca folosita (total n! solutii, ex: 8! = 40.320).
+
+vector<Lista> rezolva_turnuri(int n, int r = 0, vector<int> col_folosite = {}, Lista plasati = {});
+
+// Incearca pe rand coloanele 0 .. n-1 pentru randul 'r'
+vector<Lista> incearca_coloane_turn(int n, int r, int c, vector<int> col_folosite, Lista plasati)
+{
+    if (c >= n)
+        return {};
+
+    vector<Lista> cu_turn;
+    if (!contine_nr(col_folosite, c))
+    {
+        cu_turn = rezolva_turnuri(
+            n, r + 1,
+            adauga_nr(col_folosite, c),
+            adauga_poz(plasati, {r, c}));
+    }
+
+    vector<Lista> urm_coloana = incearca_coloane_turn(n, r, c + 1, col_folosite, plasati);
+    return uneste(cu_turn, urm_coloana);
+}
+
+vector<Lista> rezolva_turnuri(int n, int r, vector<int> col_folosite, Lista plasati)
+{
+    if (r == n)
+        return {plasati}; // Am pus cate un turn pe fiecare rand
+    return incearca_coloane_turn(n, r, 0, col_folosite, plasati);
+}
+
+// ============================================================================
+// [3] CAI (Knights) - Maxim ceil(n*n / 2) cai pe tabla n x n (2 puncte)
+// ============================================================================
+// IDEE SIMPLA:
+// - Calul sare in 'L': de pe un patrat alb ataca MEREU doar un patrat negru!
+// - Deci caii de pe patrate albe nu se ataca niciodata intre ei!
+// - Pentru n=8, maximul este 32 de cai: ori toti pe alb, ori toti pe negru.
+
+// Colecteaza recursiv toate patratele de o anumita culoare: (r + c) % 2 == culoare
+Lista patrate_culoare(int n, int r, int c, int culoare)
+{
+    if (r >= n)
+        return {};
+    if (c >= n)
+        return patrate_culoare(n, r + 1, 0, culoare);
+
+    Lista rest = patrate_culoare(n, r, c + 1, culoare);
+    if ((r + c) % 2 == culoare)
+    {
+        return imbina_poz({{r, c}}, rest);
     }
     return rest;
 }
 
-vector<Coord> filter_diag(const vector<Coord>& sqs, size_t idx, int key) {
-    if (idx >= sqs.size()) return {};
-    vector<Coord> rest = filter_diag(sqs, idx + 1, key);
-    if (sqs[idx].r - sqs[idx].c == key) {
-        return uneste(vector<Coord>{sqs[idx]}, rest);
+vector<Lista> rezolva_cai(int n)
+{
+    Lista albe = patrate_culoare(n, 0, 0, 0);
+    Lista negre = patrate_culoare(n, 0, 0, 1);
+
+    if (n % 2 == 0)
+    {
+        return {albe, negre}; // La tabla para (ex: 8x8), ambele au cate 32 cai
+    }
+    // La tabla impara, culoarea cu mai multe patrate are (n*n + 1) / 2 cai
+    return (albe.size() >= negre.size()) ? vector<Lista>{albe} : vector<Lista>{negre};
+}
+
+// ============================================================================
+// [4] REGINE (Queens) - Maxim n regine pe tabla n x n (3 puncte)
+// ============================================================================
+// IDEE SIMPLA:
+// - Regina ataca pe linie, coloana si diagonale.
+// - Punem cate o regina pe randul r, verificand sa nu aiba aceeasi coloana
+//   sau aceeasi diagonala (abs(r1 - r2) == abs(c1 - c2)) cu reginele puse.
+
+bool e_sigur_regina(Coord cand, Lista plasati, int i = 0)
+{
+    if (i >= (int)plasati.size())
+        return true; // Niciun conflict cu reginele anterioare
+    Coord q = plasati[i];
+    if (q.c == cand.c || abs(q.r - cand.r) == abs(q.c - cand.c))
+    {
+        return false; // Se ataca pe coloana sau diagonala
+    }
+    return e_sigur_regina(cand, plasati, i + 1);
+}
+
+vector<Lista> rezolva_regine(int n, int r = 0, Lista plasati = {});
+
+vector<Lista> incearca_coloane_regina(int n, int r, int c, Lista plasati)
+{
+    if (c >= n)
+        return {};
+
+    vector<Lista> cu_regina;
+    if (e_sigur_regina({r, c}, plasati))
+    {
+        cu_regina = rezolva_regine(n, r + 1, adauga_poz(plasati, {r, c}));
+    }
+
+    vector<Lista> urm_coloana = incearca_coloane_regina(n, r, c + 1, plasati);
+    return uneste(cu_regina, urm_coloana);
+}
+
+vector<Lista> rezolva_regine(int n, int r, Lista plasati)
+{
+    if (r == n)
+        return {plasati}; // Toate cele n regine au fost plasate
+    return incearca_coloane_regina(n, r, 0, plasati);
+}
+
+// ============================================================================
+// [5] DRUMUL CALULUI (Knight's Tour) - Toate cele n*n patrate (3 puncte)
+// ============================================================================
+// IDEE SIMPLA (Euristicul lui Warnsdorff):
+// - La fiecare pas alegem mai intai mutarea care are CELE MAI PUTINE
+//   continuari posibile mai departe, ca sa nu ramanem blocati in colturi.
+
+const Lista SARITURI_CAL = {
+    {-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}};
+
+// Returneaza lista mutarilor valide si nevizitate din pozitia 'p'
+Lista mutari_posibile_cal(Coord p, Lista vizitate, int n, int idx = 0)
+{
+    if (idx >= (int)SARITURI_CAL.size())
+        return {};
+
+    int nr = p.r + SARITURI_CAL[idx].r;
+    int nc = p.c + SARITURI_CAL[idx].c;
+    Lista rest = mutari_posibile_cal(p, vizitate, n, idx + 1);
+
+    if (nr >= 0 && nr < n && nc >= 0 && nc < n && !contine_poz(vizitate, {nr, nc}))
+    {
+        return imbina_poz({{nr, nc}}, rest);
     }
     return rest;
 }
 
-vector<vector<Coord>> group_by_main_diag(const vector<Coord>& sqs, int key, int max_key) {
-    if (key > max_key) return {};
-    vector<Coord> diag = filter_diag(sqs, 0, key);
-    vector<vector<Coord>> rest = group_by_main_diag(sqs, key + 1, max_key);
-    if (!diag.empty()) {
-        return uneste(vector<vector<Coord>>{diag}, rest);
+// Calculeaza cate iesiri libere are patratul 'p' (gradul Warnsdorff)
+int grad_warnsdorff(Coord p, Lista vizitate, int n)
+{
+    return (int)mutari_posibile_cal(p, adauga_poz(vizitate, p), n).size();
+}
+
+// Insereaza mutarea 'm' in lista sortata crescator dupa grad_warnsdorff
+Lista insereaza_sortat(Coord m, Lista sortate, Lista vizitate, int n, int i = 0)
+{
+    if (i >= (int)sortate.size())
+        return {m};
+    if (grad_warnsdorff(m, vizitate, n) <= grad_warnsdorff(sortate[i], vizitate, n))
+    {
+        Lista coada(sortate.begin() + i, sortate.end());
+        return imbina_poz({m}, coada);
     }
-    return rest;
+    return imbina_poz({sortate[i]}, insereaza_sortat(m, sortate, vizitate, n, i + 1));
 }
 
-vector<Placement> solve_color_diags(
-    const vector<vector<Coord>>& diags,
-    int target,
-    size_t diag_idx,
-    const Placement& placed,
-    const vector<int>& used_anti
-);
-
-vector<Placement> try_diag_squares(
-    const vector<vector<Coord>>& diags,
-    int target,
-    size_t diag_idx,
-    size_t sq_idx,
-    const Placement& placed,
-    const vector<int>& used_anti
-) {
-    if (sq_idx >= diags[diag_idx].size()) return {};
-    Coord sq = diags[diag_idx][sq_idx];
-    int anti = sq.r + sq.c;
-
-    vector<Placement> with_sq;
-    if (!contine_int(used_anti, anti, 0)) {
-        with_sq = solve_color_diags(
-            diags, target - 1, diag_idx + 1,
-            adauga(placed, sq), adauga(used_anti, anti)
-        );
-    }
-    vector<Placement> rest = try_diag_squares(diags, target, diag_idx, sq_idx + 1, placed, used_anti);
-    return uneste(with_sq, rest);
+// Sorteaza recursiv mutarile (cel mai mic grad Warnsdorff primul)
+Lista sorteaza_mutari_cal(Lista mutari, Lista vizitate, int n, int i = 0)
+{
+    if (i >= (int)mutari.size())
+        return {};
+    return insereaza_sortat(mutari[i], sorteaza_mutari_cal(mutari, vizitate, n, i + 1), vizitate, n);
 }
 
-vector<Placement> solve_color_diags(
-    const vector<vector<Coord>>& diags,
-    int target,
-    size_t diag_idx,
-    const Placement& placed,
-    const vector<int>& used_anti
-) {
-    if (target == 0) return {placed};
-    if ((int)(diags.size() - diag_idx) < target) return {};
+Lista cauta_drum_cal(int n, Coord pos, Lista drum, Lista vizitate);
 
-    // Ramura 1: plasam un nebun pe diagonala curenta
-    vector<Placement> branch1 = try_diag_squares(diags, target, diag_idx, 0, placed, used_anti);
-    // Ramura 2: sarim peste diagonala curenta
-    vector<Placement> branch2 = solve_color_diags(diags, target, diag_idx + 1, placed, used_anti);
-    return uneste(branch1, branch2);
+// Incearca pe rand mutarile sortate; cand gaseste un drum complet, il returneaza
+Lista incearca_mutari_drum(int n, Lista mutari, int i, Lista drum, Lista vizitate)
+{
+    if (i >= (int)mutari.size())
+        return {}; // Fundatura -> intoarcem lista vida
+
+    Coord urm = mutari[i];
+    Lista gasit = cauta_drum_cal(n, urm, adauga_poz(drum, urm), adauga_poz(vizitate, urm));
+    if (!gasit.empty())
+        return gasit; // Am gasit drumul complet!
+
+    return incearca_mutari_drum(n, mutari, i + 1, drum, vizitate);
 }
 
-vector<Placement> cartesian_pair(const Placement& w, const vector<Placement>& blacks, size_t b_idx) {
-    if (b_idx >= blacks.size()) return {};
-    Placement comb = uneste(w, blacks[b_idx]);
-    vector<Placement> rest = cartesian_pair(w, blacks, b_idx + 1);
-    return uneste(vector<Placement>{comb}, rest);
+Lista cauta_drum_cal(int n, Coord pos, Lista drum, Lista vizitate)
+{
+    if ((int)drum.size() == n * n)
+        return drum; // Am vizitat toate cele n*n patrate!
+
+    Lista posibile = mutari_posibile_cal(pos, vizitate, n);
+    Lista sortate = sorteaza_mutari_cal(posibile, vizitate, n);
+    return incearca_mutari_drum(n, sortate, 0, drum, vizitate);
 }
 
-vector<Placement> cartesian_all(const vector<Placement>& whites, const vector<Placement>& blacks, size_t w_idx) {
-    if (w_idx >= whites.size()) return {};
-    vector<Placement> part = cartesian_pair(whites[w_idx], blacks, 0);
-    vector<Placement> rest = cartesian_all(whites, blacks, w_idx + 1);
-    return uneste(part, rest);
-}
-
-vector<Placement> solve_max_bishops(int n) {
-    if (n <= 0) return {};
-    if (n == 1) return {{{0, 0}}};
-
-    int bishops_per_color = n - 1;
-    vector<Coord> white_sq = gen_squares_color(n, 0, 0, 0);
-    vector<Coord> black_sq = gen_squares_color(n, 0, 0, 1);
-
-    vector<vector<Coord>> white_diags = group_by_main_diag(white_sq, -(n - 1), n - 1);
-    vector<vector<Coord>> black_diags = group_by_main_diag(black_sq, -(n - 1), n - 1);
-
-    vector<Placement> white_sols = solve_color_diags(white_diags, bishops_per_color, 0, {}, {});
-    vector<Placement> black_sols = solve_color_diags(black_diags, bishops_per_color, 0, {}, {});
-
-    return cartesian_all(white_sols, black_sols, 0);
+Lista rezolva_drum_cal(int n, Coord start = {0, 0})
+{
+    return cauta_drum_cal(n, start, {start}, {start});
 }
 
 // ============================================================================
-// Problema 2: Numarul Maxim de Turnuri (Rooks) non-atacatori (1 punct)
-// ============================================================================
-// - Max turnuri pe tabla n x n: n (cate unul pe fiecare linie si coloana).
-// - Numarul total de solutii: n! (pentru n=8 => 40.320 solutii).
-
-vector<Placement> solve_max_rooks(int n, int row, const vector<int>& used_cols, const Placement& placed);
-
-vector<Placement> try_rook_cols(int n, int row, int col, const vector<int>& used_cols, const Placement& placed) {
-    if (col >= n) return {};
-    vector<Placement> with_col;
-    if (!contine_int(used_cols, col, 0)) {
-        with_col = solve_max_rooks(n, row + 1, adauga(used_cols, col), adauga(placed, Coord{row, col}));
-    }
-    vector<Placement> rest = try_rook_cols(n, row, col + 1, used_cols, placed);
-    return uneste(with_col, rest);
-}
-
-vector<Placement> solve_max_rooks(int n, int row = 0, const vector<int>& used_cols = {}, const Placement& placed = {}) {
-    if (row == n) return {placed};
-    return try_rook_cols(n, row, 0, used_cols, placed);
-}
-
-// ============================================================================
-// Problema 3: Numarul Maxim de Cai (Knights) non-atacatori (2 puncte)
-// ============================================================================
-// - Proprietate bipartita: un cal de pe un patrat alb ataca DOAR patrate negre.
-// - Max cai pe tabla 8 x 8: ceil(64 / 2) = 32 cai (2 configuratii maxime).
-
-const vector<Coord> KNIGHT_OFFSETS = {
-    {-2, -1}, {-2,  1}, {-1, -2}, {-1,  2},
-    { 1, -2}, { 1,  2}, { 2, -1}, { 2,  1}
-};
-
-vector<Placement> solve_max_knights(int n) {
-    Placement white_placement = gen_squares_color(n, 0, 0, 0);
-    Placement black_placement = gen_squares_color(n, 0, 0, 1);
-
-    if (n % 2 == 0) {
-        return {white_placement, black_placement};
-    }
-    Placement dominant = (white_placement.size() >= black_placement.size()) ? white_placement : black_placement;
-    return {dominant};
-}
-
-// ============================================================================
-// Problema 4: Numarul Maxim de Regine (Queens) non-atacatori (3 puncte)
-// ============================================================================
-// - Max regine pe tabla n x n: n (pentru n=8 => 92 solutii).
-
-bool is_safe_queen(Coord cand, const Placement& placed, size_t idx) {
-    if (idx >= placed.size()) return true;
-    Coord q = placed[idx];
-    if (q.c == cand.c || abs(q.r - cand.r) == abs(q.c - cand.c)) {
-        return false;
-    }
-    return is_safe_queen(cand, placed, idx + 1);
-}
-
-vector<Placement> solve_max_queens(int n, int row, const Placement& placed);
-
-vector<Placement> try_queen_cols(int n, int row, int col, const Placement& placed) {
-    if (col >= n) return {};
-    vector<Placement> with_col;
-    Coord cand{row, col};
-    if (is_safe_queen(cand, placed, 0)) {
-        with_col = solve_max_queens(n, row + 1, adauga(placed, cand));
-    }
-    vector<Placement> rest = try_queen_cols(n, row, col + 1, placed);
-    return uneste(with_col, rest);
-}
-
-vector<Placement> solve_max_queens(int n, int row = 0, const Placement& placed = {}) {
-    if (row == n) return {placed};
-    return try_queen_cols(n, row, 0, placed);
-}
-
-// ============================================================================
-// Problema 5: Drumul Calului (Knight's Tour) (3 puncte)
-// ============================================================================
-// - Viziteaza fiecare patratel al tablei n x n exact o singura data.
-// - Foloseste euristicul lui Warnsdorff (alege intotdeauna mutarea cu cele
-//   mai putine continuari posibile, in mod pur recursiv).
-
-vector<Coord> legal_knight_moves_rec(Coord pos, const Placement& visited, int n, size_t off_idx) {
-    if (off_idx >= KNIGHT_OFFSETS.size()) return {};
-    int nr = pos.r + KNIGHT_OFFSETS[off_idx].r;
-    int nc = pos.c + KNIGHT_OFFSETS[off_idx].c;
-    vector<Coord> rest = legal_knight_moves_rec(pos, visited, n, off_idx + 1);
-    if (nr >= 0 && nr < n && nc >= 0 && nc < n && !contine_coord(visited, {nr, nc}, 0)) {
-        return uneste(vector<Coord>{{nr, nc}}, rest);
-    }
-    return rest;
-}
-
-int warnsdorff_degree(Coord pos, const Placement& visited, int n) {
-    return (int)legal_knight_moves_rec(pos, adauga(visited, pos), n, 0).size();
-}
-
-// Inserare sortata pur recursiva dupa gradul Warnsdorff
-vector<Coord> insert_sorted_move(Coord m, const vector<Coord>& sorted, const Placement& visited, int n, size_t idx) {
-    if (idx >= sorted.size()) return {m};
-    if (warnsdorff_degree(m, visited, n) <= warnsdorff_degree(sorted[idx], visited, n)) {
-        vector<Coord> tail(sorted.begin() + idx, sorted.end());
-        return uneste(vector<Coord>{m}, tail);
-    }
-    return uneste(vector<Coord>{sorted[idx]}, insert_sorted_move(m, sorted, visited, n, idx + 1));
-}
-
-vector<Coord> sort_warnsdorff_moves(const vector<Coord>& moves, const Placement& visited, int n, size_t idx) {
-    if (idx >= moves.size()) return {};
-    vector<Coord> sorted_rest = sort_warnsdorff_moves(moves, visited, n, idx + 1);
-    return insert_sorted_move(moves[idx], sorted_rest, visited, n, 0);
-}
-
-pair<bool, Placement> search_tour(int n, Coord cur_pos, const Placement& path, const Placement& visited);
-
-pair<bool, Placement> try_tour_moves(int n, const vector<Coord>& moves, size_t idx, const Placement& path, const Placement& visited) {
-    if (idx >= moves.size()) return {false, {}};
-    Coord next_pos = moves[idx];
-    pair<bool, Placement> res = search_tour(n, next_pos, adauga(path, next_pos), adauga(visited, next_pos));
-    if (res.first) return res;
-    return try_tour_moves(n, moves, idx + 1, path, visited);
-}
-
-pair<bool, Placement> search_tour(int n, Coord cur_pos, const Placement& path, const Placement& visited) {
-    if ((int)path.size() == n * n) {
-        return {true, path};
-    }
-    vector<Coord> moves = legal_knight_moves_rec(cur_pos, visited, n, 0);
-    vector<Coord> sorted = sort_warnsdorff_moves(moves, visited, n, 0);
-    return try_tour_moves(n, sorted, 0, path, visited);
-}
-
-pair<bool, Placement> solve_knights_tour(int n = 8, Coord start = {0, 0}) {
-    return search_tour(n, start, {start}, {start});
-}
-
-// ============================================================================
-// Sectiunea 6: Validare Automata (Unit Tests) - Pur Recursiv
+// VALIDARE AUTOMATA (--test) - VERIFICA TOATE CELE 5 PROBLEME RECURSIV
 // ============================================================================
 
-void check_bishops_pair(const Placement& sol, size_t i, size_t j) {
-    if (i >= sol.size()) return;
-    if (j >= sol.size()) {
-        check_bishops_pair(sol, i + 1, i + 2);
+void verifica_perechi_nebuni(Lista sol, int i, int j)
+{
+    if (i >= (int)sol.size())
+        return;
+    if (j >= (int)sol.size())
+    {
+        verifica_perechi_nebuni(sol, i + 1, i + 2);
         return;
     }
     assert(abs(sol[i].r - sol[j].r) != abs(sol[i].c - sol[j].c));
-    check_bishops_pair(sol, i, j + 1);
+    verifica_perechi_nebuni(sol, i, j + 1);
 }
 
-void validate_bishops_list(const vector<Placement>& sols, size_t idx) {
-    if (idx >= sols.size()) return;
-    assert(sols[idx].size() == 14);
-    check_bishops_pair(sols[idx], 0, 1);
-    validate_bishops_list(sols, idx + 1);
+void valideaza_nebuni(vector<Lista> sols, int i = 0)
+{
+    if (i >= (int)sols.size())
+        return;
+    assert(sols[i].size() == 14);
+    verifica_perechi_nebuni(sols[i], 0, 1);
+    valideaza_nebuni(sols, i + 1);
 }
 
-void check_rooks_pair(const Placement& sol, size_t i, size_t j) {
-    if (i >= sol.size()) return;
-    if (j >= sol.size()) {
-        check_rooks_pair(sol, i + 1, i + 2);
+void verifica_perechi_turnuri(Lista sol, int i, int j)
+{
+    if (i >= (int)sol.size())
+        return;
+    if (j >= (int)sol.size())
+    {
+        verifica_perechi_turnuri(sol, i + 1, i + 2);
         return;
     }
     assert(sol[i].r != sol[j].r && sol[i].c != sol[j].c);
-    check_rooks_pair(sol, i, j + 1);
+    verifica_perechi_turnuri(sol, i, j + 1);
 }
 
-void validate_rooks_list(const vector<Placement>& sols, size_t idx, size_t limit) {
-    if (idx >= sols.size() || idx >= limit) return;
-    assert(sols[idx].size() == 8);
-    check_rooks_pair(sols[idx], 0, 1);
-    validate_rooks_list(sols, idx + 1, limit);
+void valideaza_turnuri(vector<Lista> sols, int i = 0, int limita = 2000)
+{
+    if (i >= (int)sols.size() || i >= limita)
+        return;
+    assert(sols[i].size() == 8);
+    verifica_perechi_turnuri(sols[i], 0, 1);
+    valideaza_turnuri(sols, i + 1, limita);
 }
 
-void check_knights_pair(const Placement& sol, size_t i, size_t j) {
-    if (i >= sol.size()) return;
-    if (j >= sol.size()) {
-        check_knights_pair(sol, i + 1, i + 2);
+void verifica_perechi_cai(Lista sol, int i, int j)
+{
+    if (i >= (int)sol.size())
+        return;
+    if (j >= (int)sol.size())
+    {
+        verifica_perechi_cai(sol, i + 1, i + 2);
         return;
     }
     int dr = abs(sol[i].r - sol[j].r);
     int dc = abs(sol[i].c - sol[j].c);
     assert(!((dr == 1 && dc == 2) || (dr == 2 && dc == 1)));
-    check_knights_pair(sol, i, j + 1);
+    verifica_perechi_cai(sol, i, j + 1);
 }
 
-void validate_knights_list(const vector<Placement>& sols, size_t idx) {
-    if (idx >= sols.size()) return;
-    assert(sols[idx].size() == 32);
-    check_knights_pair(sols[idx], 0, 1);
-    validate_knights_list(sols, idx + 1);
+void valideaza_cai(vector<Lista> sols, int i = 0)
+{
+    if (i >= (int)sols.size())
+        return;
+    assert(sols[i].size() == 32);
+    verifica_perechi_cai(sols[i], 0, 1);
+    valideaza_cai(sols, i + 1);
 }
 
-void check_queens_pair(const Placement& sol, size_t i, size_t j) {
-    if (i >= sol.size()) return;
-    if (j >= sol.size()) {
-        check_queens_pair(sol, i + 1, i + 2);
+void verifica_perechi_regine(Lista sol, int i, int j)
+{
+    if (i >= (int)sol.size())
+        return;
+    if (j >= (int)sol.size())
+    {
+        verifica_perechi_regine(sol, i + 1, i + 2);
         return;
     }
     assert(sol[i].r != sol[j].r && sol[i].c != sol[j].c &&
            abs(sol[i].r - sol[j].r) != abs(sol[i].c - sol[j].c));
-    check_queens_pair(sol, i, j + 1);
+    verifica_perechi_regine(sol, i, j + 1);
 }
 
-void validate_queens_list(const vector<Placement>& sols, size_t idx) {
-    if (idx >= sols.size()) return;
-    assert(sols[idx].size() == 8);
-    check_queens_pair(sols[idx], 0, 1);
-    validate_queens_list(sols, idx + 1);
+void valideaza_regine(vector<Lista> sols, int i = 0)
+{
+    if (i >= (int)sols.size())
+        return;
+    assert(sols[i].size() == 8);
+    verifica_perechi_regine(sols[i], 0, 1);
+    valideaza_regine(sols, i + 1);
 }
 
-void validate_tour_steps(const Placement& tour, size_t idx) {
-    if (idx + 1 >= tour.size()) return;
-    assert(!contine_coord(tour, tour[idx], idx + 1)); // unicitate
-    int dr = abs(tour[idx].r - tour[idx + 1].r);
-    int dc = abs(tour[idx].c - tour[idx + 1].c);
-    assert((dr == 1 && dc == 2) || (dr == 2 && dc == 1)); // mutare valida de cal
-    validate_tour_steps(tour, idx + 1);
+void valideaza_pasi_drum(Lista drum, int i = 0)
+{
+    if (i + 1 >= (int)drum.size())
+        return;
+    assert(!contine_poz(drum, drum[i], i + 1)); // Nu viziteaza de 2 ori aceeasi casuta
+    int dr = abs(drum[i].r - drum[i + 1].r);
+    int dc = abs(drum[i].c - drum[i + 1].c);
+    assert((dr == 1 && dc == 2) || (dr == 2 && dc == 1)); // Pas valid in L
+    valideaza_pasi_drum(drum, i + 1);
 }
 
-void validate_all_solutions() {
-    cout << "Incepe validarea automata a constrangerilor...\n";
+void ruleaza_teste()
+{
+    cout << "Verificare automata a celor 5 probleme (tabla 8x8)...\n";
 
-    // 1. Nebuni
-    vector<Placement> bishops = solve_max_bishops(8);
-    assert(bishops.size() == 256);
-    validate_bishops_list(bishops, 0);
-    cout << "  [OK] Problema 1 (Nebuni): 256 solutii valide verificate.\n";
+    vector<Lista> nebuni = rezolva_nebuni(8);
+    assert(nebuni.size() == 256);
+    valideaza_nebuni(nebuni);
+    cout << "  [OK] 1. Nebuni: 256 solutii (cate 14 piese)\n";
 
-    // 2. Turnuri
-    vector<Placement> rooks = solve_max_rooks(8);
-    assert(rooks.size() == 40320);
-    validate_rooks_list(rooks, 0, 2000);
-    cout << "  [OK] Problema 2 (Turnuri): 40.320 solutii valide verificate.\n";
+    vector<Lista> turnuri = rezolva_turnuri(8);
+    assert(turnuri.size() == 40320);
+    valideaza_turnuri(turnuri);
+    cout << "  [OK] 2. Turnuri: 40.320 solutii (cate 8 piese)\n";
 
-    // 3. Cai
-    vector<Placement> knights = solve_max_knights(8);
-    assert(knights.size() == 2);
-    validate_knights_list(knights, 0);
-    cout << "  [OK] Problema 3 (Cai): 2 solutii de cate 32 cai verificate.\n";
+    vector<Lista> cai = rezolva_cai(8);
+    assert(cai.size() == 2);
+    valideaza_cai(cai);
+    cout << "  [OK] 3. Cai: 2 solutii (cate 32 piese)\n";
 
-    // 4. Regine
-    vector<Placement> queens = solve_max_queens(8);
-    assert(queens.size() == 92);
-    validate_queens_list(queens, 0);
-    cout << "  [OK] Problema 4 (Regine): 92 solutii valide verificate.\n";
+    vector<Lista> regine = rezolva_regine(8);
+    assert(regine.size() == 92);
+    valideaza_regine(regine);
+    cout << "  [OK] 4. Regine: 92 solutii (cate 8 piese)\n";
 
-    // 5. Drumul calului
-    pair<bool, Placement> tour_res = solve_knights_tour(8, {0, 0});
-    assert(tour_res.first);
-    assert(tour_res.second.size() == 64);
-    validate_tour_steps(tour_res.second, 0);
-    cout << "  [OK] Problema 5 (Drumul calului): Tur complet Hamiltonian de 64 pasi verificat.\n";
+    Lista drum = rezolva_drum_cal(8, {0, 0});
+    assert(drum.size() == 64);
+    valideaza_pasi_drum(drum);
+    cout << "  [OK] 5. Drumul calului: 64 pasi valizi\n";
 
-    cout << "\nTOATE CELE 5 PROBLEME AU TRECUT 100% DIN TESTELE DE CORECTITUDINE!\n";
+    cout << "\nTOATE TESTELE AU TRECUT 100%!\n";
 }
 
 // ============================================================================
-// Sectiunea 7: Demonstratie si Program Principal
+// PROGRAM PRINCIPAL (USOR DE MODIFICAT IN FATA PROFESORULUI)
 // ============================================================================
-
-void run_lab_demonstration() {
-    const int n = 8;
-    const string sep = repeta_str("=", 70);
-
-    cout << sep << "\n";
-    cout << "PARADIGMA FUNCTIONALA - LABORATORUL 2: PROBLEME DE SAH (C++)\n";
-    cout << "Implementare stricta cu Imutabilitate si Recursivitate Pura\n";
-    cout << sep << "\n";
-
-    // 1. Nebuni
-    cout << "\n[1] GENERAREA PLASARILOR PENTRU NUMARUL MAXIM DE NEBUNI\n";
-    cout << "    Dimensiune tabla: " << n << "x" << n << "\n";
-    cout << "    Numar maxim teoretic de nebuni: 2*" << n << " - 2 = " << (2 * n - 2) << "\n";
-
-    auto t0 = chrono::high_resolution_clock::now();
-    vector<Placement> bishops = solve_max_bishops(n);
-    auto t1 = chrono::high_resolution_clock::now();
-
-    cout << "    Total solutii gasite: " << bishops.size() << " (asteptat: 256)\n";
-    cout << "    Timp de executie: " << fixed << setprecision(2)
-         << chrono::duration<double, milli>(t1 - t0).count() << " ms\n";
-    if (!bishops.empty()) {
-        cout << "\n    Exemplu prima solutie de nebuni (B):\n";
-        cout << format_board(n, bishops[0], "B") << "\n";
+int main(int argc, char *argv[])
+{
+    // Daca rulam cu ./main --test, verificam automat toate constrangerile
+    if (argc > 1 && (string(argv[1]) == "--test" || string(argv[1]) == "-t"))
+    {
+        ruleaza_teste();
+        return 0;
     }
 
-    // 2. Turnuri
-    cout << "\n" << sep << "\n";
-    cout << "\n[2] GENERAREA PLASARILOR PENTRU NUMARUL MAXIM DE TURNURI\n";
-    cout << "    Dimensiune tabla: " << n << "x" << n << "\n";
-    cout << "    Numar maxim de turnuri: " << n << " (total solutii: 8! = 40.320)\n";
+    // ------------------------------------------------------------------------
+    // PARAMETRI USOR DE SCHIMBAT:
+    // Poti schimba 'n' (ex: 4, 5, 8) sau pozitia de start pentru cal!
+    // ------------------------------------------------------------------------
+    int n = 8;
+    Coord start_cal = {0, 0};
 
-    t0 = chrono::high_resolution_clock::now();
-    vector<Placement> rooks = solve_max_rooks(n);
-    t1 = chrono::high_resolution_clock::now();
+    cout << "=====================================================\n";
+    cout << " PARADIGMA FUNCTIONALA - LAB 2: PROBLEME DE SAH (" << n << "x" << n << ")\n";
+    cout << "=====================================================\n\n";
 
-    cout << "    Total solutii generate: " << rooks.size() << "\n";
-    cout << "    Timp de executie: " << fixed << setprecision(2)
-         << chrono::duration<double, milli>(t1 - t0).count() << " ms\n";
-    if (!rooks.empty()) {
-        cout << "\n    Exemplu prima solutie de turnuri (T):\n";
-        cout << format_board(n, rooks[0], "T") << "\n";
+    // 1. NEBUNI
+    vector<Lista> nebuni = rezolva_nebuni(n);
+    cout << "[1] NEBUNI: max " << nebuni[0].size() << " piese -> " << nebuni.size() << " solutii\n";
+    afiseaza_tabla(n, nebuni[0], 'N');
+
+    // 2. TURNURI
+    vector<Lista> turnuri = rezolva_turnuri(n);
+    cout << "\n[2] TURNURI: max " << n << " piese -> " << turnuri.size() << " solutii\n";
+    afiseaza_tabla(n, turnuri[0], 'T');
+
+    // 3. CAI
+    vector<Lista> cai = rezolva_cai(n);
+    cout << "\n[3] CAI: max " << cai[0].size() << " piese -> " << cai.size() << " solutii\n";
+    cout << "  Solutia 1 (patrate albe):\n";
+    afiseaza_tabla(n, cai[0], 'C');
+    if (cai.size() > 1)
+    {
+        cout << "  Solutia 2 (patrate negre):\n";
+        afiseaza_tabla(n, cai[1], 'C');
     }
 
-    // 3. Cai
-    cout << "\n" << sep << "\n";
-    cout << "\n[3] GENERAREA PLASARILOR PENTRU NUMARUL MAXIM DE CAI\n";
-    cout << "    Dimensiune tabla: " << n << "x" << n << "\n";
-    cout << "    Numar maxim de cai non-atacatori: " << (n * n / 2) << "\n";
+    // 4. REGINE
+    vector<Lista> regine = rezolva_regine(n);
+    cout << "\n[4] REGINE: max " << n << " piese -> " << regine.size() << " solutii\n";
+    afiseaza_tabla(n, regine[0], 'R');
 
-    t0 = chrono::high_resolution_clock::now();
-    vector<Placement> knights = solve_max_knights(n);
-    t1 = chrono::high_resolution_clock::now();
-
-    cout << "    Total solutii maxime gasite: " << knights.size() << "\n";
-    cout << "    Timp de executie: " << fixed << setprecision(2)
-         << chrono::duration<double, milli>(t1 - t0).count() << " ms\n";
-    cout << "\n    Solutia 1: Toti cei 32 de cai (C) pe patrate ALBE:\n";
-    cout << format_board(n, knights[0], "C") << "\n";
-    if (knights.size() > 1) {
-        cout << "\n    Solutia 2: Toti cei 32 de cai (C) pe patrate NEGRE:\n";
-        cout << format_board(n, knights[1], "C") << "\n";
+    // 5. DRUMUL CALULUI
+    Lista drum = rezolva_drum_cal(n, start_cal);
+    cout << "\n[5] DRUMUL CALULUI (start: " << start_cal.r << "," << start_cal.c << "):\n";
+    if (!drum.empty())
+    {
+        cout << "  Gasit drum complet de " << drum.size() << " pasi:\n";
+        afiseaza_drum_cal(n, drum);
+    }
+    else
+    {
+        cout << "  Nu exista drum complet pentru aceste dimensiuni.\n";
     }
 
-    // 4. Regine
-    cout << "\n" << sep << "\n";
-    cout << "\n[4] GENERAREA PLASARILOR PENTRU NUMARUL MAXIM DE REGINE\n";
-    cout << "    Dimensiune tabla: " << n << "x" << n << "\n";
-    cout << "    Numar maxim de regine: " << n << " (asteptat: 92 solutii)\n";
-
-    t0 = chrono::high_resolution_clock::now();
-    vector<Placement> queens = solve_max_queens(n);
-    t1 = chrono::high_resolution_clock::now();
-
-    cout << "    Total solutii gasite: " << queens.size() << "\n";
-    cout << "    Timp de executie: " << fixed << setprecision(2)
-         << chrono::duration<double, milli>(t1 - t0).count() << " ms\n";
-    if (!queens.empty()) {
-        cout << "\n    Exemplu prima solutie de regine (Q):\n";
-        cout << format_board(n, queens[0], "Q") << "\n";
-    }
-
-    // 5. Drumul Calului
-    cout << "\n" << sep << "\n";
-    cout << "\n[5] CAUTAREA UNUI DRUM AL CALULUI (Knight's Tour)\n";
-    cout << "    Dimensiune tabla: " << n << "x" << n << " (" << (n * n) << " patrate)\n";
-
-    Coord start_sq{0, 0};
-    t0 = chrono::high_resolution_clock::now();
-    pair<bool, Placement> tour_res = solve_knights_tour(n, start_sq);
-    t1 = chrono::high_resolution_clock::now();
-
-    if (tour_res.first) {
-        cout << "    Drum gasit cu succes din pozitia (0, 0)!\n";
-        cout << "    Numar total de pasi: " << tour_res.second.size() << "\n";
-        cout << "    Timp de executie: " << fixed << setprecision(2)
-             << chrono::duration<double, milli>(t1 - t0).count() << " ms\n";
-        cout << "\n    Matricea pasilor drumului calului (1 -> 64):\n";
-        cout << format_knight_tour(n, tour_res.second) << "\n";
-    } else {
-        cout << "    Nu a fost gasit un drum al calului.\n";
-    }
-
-    cout << "\n" << sep << "\n";
-    cout << "Toate cele 5 cerinte ale laboratorului au fost rezolvate cu succes!\n";
-    cout << sep << "\n";
-}
-
-int main(int argc, char* argv[]) {
-    if (argc > 1 && (string(argv[1]) == "--test" || string(argv[1]) == "-t")) {
-        validate_all_solutions();
-    } else {
-        run_lab_demonstration();
-    }
     return 0;
 }

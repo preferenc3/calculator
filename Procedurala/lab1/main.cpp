@@ -5,39 +5,28 @@
 #include <vector>
 #include <map>
 #include <set>
-#include <algorithm>
 #include <cctype>
-#include <cstdint>
-#include <iomanip>
 #include <cassert>
 
 using namespace std;
 
 // ==============================================================================
-// Lucrarea de Laborator 1 - Paradigma Procedurala (C++)
-// Redactor de Text Procedural cu Instrumente de Analiza si Prelucrare Textuala
+// LABORATORUL 1 - PARADIGMA PROCEDURALA (C++)
+// Redactor de text simplu cu proceduri de analiza textuala
 // ==============================================================================
-// Principii procedurale respectate:
-// - Fara clase definite (zero OOP: doar structuri de date simple si proceduri).
-// - Starea aplicatiei gestionata prin variabile globale explicite si parametri.
-// - Descompunere modulara in proceduri independente pentru fiecare cerinta:
-//   a. gaseste_cel_mai_frecvent() (cuvant si expresie)
-//   b. hash_text() (DJB2 si suma ASCII)
-//   c. codifica_text() si decodifica_text() + verificare
-//   d. imparte_in_propozitii(), lungime medie, propozitia cea mai lunga
-//   e. Statistica textuala (cuvinte, caractere, linii, cuvinte unice)
-//   f. sorteaza_linii_dupa_lungime() si sorteaza_propozitii_dupa_lungime()
+// Principii procedurale:
+// - Fara clase (doar functii/proceduri independente).
+// - Fara recursivitate inutila (doar bucle simple 'for' si 'while').
+// - Starea aplicatiei este pastrata in variabile globale simple.
 // ==============================================================================
 
-// ==============================================================================
-// VARIABILE GLOBALE DE STARE (PARADIGMA PROCEDURALA)
-// ==============================================================================
+// Variabile globale de stare (redactorul de text)
 string TEXT_CURENT = "";
 string CALE_FISIER_CURENT = "";
 bool TEXT_MODIFICAT = false;
 int ULTIMA_DEPLASARE = 3;
 
-const string TEXT_EXEMPLU_DEMO =
+const string TEXT_DEMO =
     "Paradigma procedurala este un model fundamental de programare.\n"
     "Programarea procedurala se bazeaza pe apeluri de functii si proceduri independente!\n"
     "Fiecare procedura rezolva o problema specifica.\n"
@@ -46,79 +35,42 @@ const string TEXT_EXEMPLU_DEMO =
     "In laboratorul 1 analizam frecventa cuvintelor si calculam statistici diverse.\n"
     "Succes in explorarea conceptelor procedurale!";
 
-// Structuri simple de date (record-uri procedurale)
-struct RezultatFrecventa {
-    string element;
-    int aparitii;
-    map<string, int> frecvente;
-};
-
-struct RezultatPropozitieMax {
-    string propozitie;
-    int numar_cuvinte;
-    int numar_caractere;
-};
-
-struct AnalizaPropozitii {
-    vector<string> propozitii;
-    int numar_propozitii;
-    double lungime_medie_cuvinte;
-    string propozitie_maxima;
-    int cuvinte_propozitie_maxima;
-    int caractere_propozitie_maxima;
-};
-
-struct StatisticiText {
-    int numar_cuvinte;
-    int numar_caractere_cu_spatii;
-    int numar_caractere_fara_spatii;
-    int numar_linii;
-    int numar_cuvinte_unice;
-};
-
 // ==============================================================================
-// FUNCTII AUXILIARE DE PRELUCRARE SIRURI
+// FUNCTII AJUTATOARE SIMPLE
 // ==============================================================================
 
-string trim_text(const string& s) {
-    size_t start = s.find_first_not_of(" \t\r\n");
-    if (start == string::npos) return "";
-    size_t end = s.find_last_not_of(" \t\r\n");
-    return s.substr(start, end - start + 1);
+// Elimina spatiile si liniile noi de la inceputul si sfarsitul unui sir
+string curata_spatii(string s) {
+    int st = 0;
+    while (st < (int)s.size() && isspace((unsigned char)s[st])) st++;
+    int dr = (int)s.size() - 1;
+    while (dr >= st && isspace((unsigned char)s[dr])) dr--;
+    if (st > dr) return "";
+    return s.substr(st, dr - st + 1);
 }
 
-string to_lower_ascii(const string& s) {
-    string rez = s;
-    for (size_t i = 0; i < rez.size(); i++) {
-        rez[i] = (char)tolower((unsigned char)rez[i]);
+// Transforma toate literele mari in litere mici
+string litere_mici(string s) {
+    for (int i = 0; i < (int)s.size(); i++) {
+        s[i] = (char)tolower((unsigned char)s[i]);
     }
-    return rez;
+    return s;
 }
 
-bool este_caracter_cuvant(unsigned char c) {
-    // Recunoaste litere ASCII, cifre, '_' si octeti UTF-8 (diacritice)
-    return isalnum(c) || c == '_' || c >= 128;
-}
-
-// ==============================================================================
-// A. CAUTAREA CELUI MAI FRECVENT CUVANT SAU EXPRESIE (2 puncte)
-// ==============================================================================
-
-vector<string> extrage_cuvinte(const string& text) {
+// Extrage toate cuvintele din text (separa dupa spatii si semne de punctuatie)
+vector<string> extrage_cuvinte(string text) {
     vector<string> cuvinte;
-    if (text.empty()) return cuvinte;
-
-    string lower = to_lower_ascii(text);
+    string mic = litere_mici(text);
     string curent = "";
 
-    for (size_t i = 0; i < lower.size(); i++) {
-        unsigned char c = (unsigned char)lower[i];
-        if (este_caracter_cuvant(c)) {
-            curent += lower[i];
+    for (int i = 0; i < (int)mic.size(); i++) {
+        unsigned char c = (unsigned char)mic[i];
+        if (isalnum(c) || c == '_' || c >= 128) {
+            curent += mic[i];
         } else {
             if (!curent.empty()) {
                 cuvinte.push_back(curent);
-                curent.clear();
+                curent = "";
             }
         }
     }
@@ -128,92 +80,84 @@ vector<string> extrage_cuvinte(const string& text) {
     return cuvinte;
 }
 
-map<string, int> calculeaza_frecventa_cuvinte(const string& text) {
+// ==============================================================================
+// A. CAUTAREA CELUI MAI FRECVENT CUVANT SAU EXPRESIE (2 puncte)
+// ==============================================================================
+
+// Calculeaza frecventa cuvintelor sau a expresiilor (de 'lungime_expresie' cuvinte)
+// si returneaza elementul maxim (iar prin referinta 'max_aparitii' numarul de aparitii).
+string gaseste_cel_mai_frecvent(string text, string tip, int lungime_expresie, int& max_aparitii) {
     vector<string> cuvinte = extrage_cuvinte(text);
-    map<string, int> frecvente;
-    for (size_t i = 0; i < cuvinte.size(); i++) {
-        frecvente[cuvinte[i]]++;
-    }
-    return frecvente;
-}
-
-map<string, int> calculeaza_frecventa_expresii(const string& text, int lungime = 2) {
-    vector<string> cuvinte = extrage_cuvinte(text);
-    map<string, int> frecvente;
-    if ((int)cuvinte.size() < lungime || lungime <= 0) return frecvente;
-
-    for (size_t i = 0; i <= cuvinte.size() - (size_t)lungime; i++) {
-        string expresie = cuvinte[i];
-        for (int j = 1; j < lungime; j++) {
-            expresie += " " + cuvinte[i + j];
-        }
-        frecvente[expresie]++;
-    }
-    return frecvente;
-}
-
-int calculeaza_frecventa_expresie_specifica(const string& text, const string& expresie) {
-    string exp_curata = to_lower_ascii(trim_text(expresie));
-    string text_lower = to_lower_ascii(text);
-    if (text_lower.empty() || exp_curata.empty()) return 0;
-
-    int aparitii = 0;
-    size_t pos = 0;
-    while ((pos = text_lower.find(exp_curata, pos)) != string::npos) {
-        aparitii++;
-        pos += exp_curata.size();
-    }
-    return aparitii;
-}
-
-RezultatFrecventa gaseste_cel_mai_frecvent(const string& text, const string& tip = "cuvant", int lungime_expresie = 2) {
-    RezultatFrecventa rez;
-    rez.aparitii = 0;
+    map<string, int> frecv;
 
     if (tip == "cuvant") {
-        rez.frecvente = calculeaza_frecventa_cuvinte(text);
+        // Numaram fiecare cuvant
+        for (int i = 0; i < (int)cuvinte.size(); i++) {
+            frecv[cuvinte[i]]++;
+        }
     } else if (tip == "expresie") {
-        rez.frecvente = calculeaza_frecventa_expresii(text, lungime_expresie);
-    } else {
-        cout << "[EROARE] Parametrul 'tip' trebuie sa fie 'cuvant' sau 'expresie'.\n";
-        return rez;
-    }
-
-    for (const auto& kv : rez.frecvente) {
-        if (kv.second > rez.aparitii) {
-            rez.element = kv.first;
-            rez.aparitii = kv.second;
+        // Formam grupuri de 'lungime_expresie' cuvinte consecutive
+        for (int i = 0; i <= (int)cuvinte.size() - lungime_expresie; i++) {
+            string exp = cuvinte[i];
+            for (int j = 1; j < lungime_expresie; j++) {
+                exp += " " + cuvinte[i + j];
+            }
+            frecv[exp]++;
         }
     }
-    return rez;
+
+    // Cautam elementul cu cele mai multe aparitii
+    string elem_max = "";
+    max_aparitii = 0;
+    for (auto pereche : frecv) {
+        if (pereche.second > max_aparitii) {
+            elem_max = pereche.first;
+            max_aparitii = pereche.second;
+        }
+    }
+    return elem_max;
+}
+
+// Numara de cate ori apare o expresie exacta in text (fara diferenta intre litere mari/mici)
+int numara_expresie_specifica(string text, string expresie) {
+    string t = litere_mici(text);
+    string e = litere_mici(curata_spatii(expresie));
+    if (e.empty()) return 0;
+
+    int contor = 0;
+    size_t pos = t.find(e, 0);
+    while (pos != string::npos) {
+        contor++;
+        pos = t.find(e, pos + e.size());
+    }
+    return contor;
 }
 
 // ==============================================================================
 // B. HASH-UL TEXTULUI (1 punct)
 // ==============================================================================
 
-uint64_t hash_ascii_sum(const string& text) {
-    uint64_t suma = 0;
-    for (size_t i = 0; i < text.size(); i++) {
+// Metoda 1: Suma simpla a codurilor ASCII ale tuturor caracterelor
+unsigned long long hash_ascii_sum(string text) {
+    unsigned long long suma = 0;
+    for (int i = 0; i < (int)text.size(); i++) {
         suma += (unsigned char)text[i];
     }
     return suma;
 }
 
-uint64_t hash_djb2(const string& text) {
-    uint64_t hash_val = 5381;
-    for (size_t i = 0; i < text.size(); i++) {
-        hash_val = ((hash_val << 5) + hash_val) + (unsigned char)text[i];
+// Metoda 2: Algoritmul clasic DJB2: hash = hash * 33 + caracter
+unsigned long long hash_djb2(string text) {
+    unsigned long long h = 5381;
+    for (int i = 0; i < (int)text.size(); i++) {
+        h = (h * 33) + (unsigned char)text[i];
     }
-    return hash_val;
+    return h;
 }
 
-uint64_t hash_text(const string& text, const string& algoritm = "djb2") {
-    if (algoritm == "djb2") {
-        return hash_djb2(text);
-    } else if (algoritm == "ascii_sum") {
-        return hash_ascii_sum(text);
-    }
+// Procedura ceruta: returneaza hash-ul in functie de algoritmul ales
+unsigned long long hash_text(string text, string algoritm = "djb2") {
+    if (algoritm == "ascii_sum") return hash_ascii_sum(text);
     return hash_djb2(text);
 }
 
@@ -221,255 +165,196 @@ uint64_t hash_text(const string& text, const string& algoritm = "djb2") {
 // C. CODIFICAREA SI DECODIFICAREA TEXTULUI (2 puncte)
 // ==============================================================================
 
-string codifica_text(const string& text, int deplasare = 3) {
-    string rezultat = "";
-    rezultat.reserve(text.size());
-
-    for (size_t i = 0; i < text.size(); i++) {
+// Aplica cifrul Cezar: deplaseaza fiecare caracter cu 'deplasare' in codul ASCII
+// (pastreaza caracterul '\n' intact pentru a nu strica liniile)
+string codifica_text(string text, int deplasare = 3) {
+    string rez = "";
+    for (int i = 0; i < (int)text.size(); i++) {
         unsigned char c = (unsigned char)text[i];
         if (c == '\n') {
-            rezultat += '\n';
+            rez += '\n';
         } else {
-            // Deplasare ciclica in spatiul ASCII/byte [0..255]
-            int cod_nou = ((int)c + deplasare) % 256;
-            if (cod_nou < 0) cod_nou += 256;
-            rezultat += (char)(unsigned char)cod_nou;
-        }
-    }
-    return rezultat;
-}
-
-string decodifica_text(const string& text, int deplasare = 3) {
-    string rezultat = "";
-    rezultat.reserve(text.size());
-
-    for (size_t i = 0; i < text.size(); i++) {
-        unsigned char c = (unsigned char)text[i];
-        if (c == '\n') {
-            rezultat += '\n';
-        } else {
-            int cod_nou = ((int)c - deplasare) % 256;
-            if (cod_nou < 0) cod_nou += 256;
-            rezultat += (char)(unsigned char)cod_nou;
-        }
-    }
-    return rezultat;
-}
-
-bool verifica_codificare_decodificare(const string& text, int deplasare, string& out_codificat, string& out_decodificat) {
-    out_codificat = codifica_text(text, deplasare);
-    out_decodificat = decodifica_text(out_codificat, deplasare);
-    return (out_decodificat == text);
-}
-
-// ==============================================================================
-// E (declarare anticipata numara_cuvinte pentru D)
-// ==============================================================================
-
-int numara_cuvinte(const string& text) {
-    if (text.empty()) return 0;
-    return (int)extrage_cuvinte(text).size();
-}
-
-int numara_caractere(const string& text, bool include_spatii = true) {
-    if (text.empty()) return 0;
-    if (include_spatii) return (int)text.size();
-
-    int contor = 0;
-    for (size_t i = 0; i < text.size(); i++) {
-        if (!isspace((unsigned char)text[i])) {
-            contor++;
-        }
-    }
-    return contor;
-}
-
-int numara_linii(const string& text) {
-    if (text.empty()) return 0;
-    int linii = 1;
-    for (size_t i = 0; i < text.size(); i++) {
-        if (text[i] == '\n') {
-            if (i + 1 < text.size()) {
-                linii++;
-            }
-        }
-    }
-    return linii;
-}
-
-int numara_cuvinte_unice(const string& text) {
-    if (text.empty()) return 0;
-    vector<string> cuvinte = extrage_cuvinte(text);
-    set<string> unice(cuvinte.begin(), cuvinte.end());
-    return (int)unice.size();
-}
-
-StatisticiText calculeaza_statistici_text(const string& text) {
-    StatisticiText st;
-    st.numar_cuvinte = numara_cuvinte(text);
-    st.numar_caractere_cu_spatii = numara_caractere(text, true);
-    st.numar_caractere_fara_spatii = numara_caractere(text, false);
-    st.numar_linii = numara_linii(text);
-    st.numar_cuvinte_unice = numara_cuvinte_unice(text);
-    return st;
-}
-
-// ==============================================================================
-// D. ANALIZA PROPOZITIILOR (2 puncte) - Proceduri separate
-// ==============================================================================
-
-vector<string> imparte_in_propozitii(const string& text) {
-    vector<string> propozitii;
-    string cur = "";
-
-    for (size_t i = 0; i < text.size(); i++) {
-        char c = text[i];
-        if (c == '\n') {
-            string curatat = trim_text(cur);
-            if (!curatat.empty()) propozitii.push_back(curatat);
-            cur.clear();
-        } else if (c == '.' || c == '!' || c == '?') {
-            cur += c;
-            // Daca urmeaza spatiu, newline sau sfarsit de text, incheiem propozitia
-            if (i + 1 >= text.size() || isspace((unsigned char)text[i + 1])) {
-                string curatat = trim_text(cur);
-                if (!curatat.empty()) propozitii.push_back(curatat);
-                cur.clear();
-            }
-        } else {
-            cur += c;
-        }
-    }
-    string ramas = trim_text(cur);
-    if (!ramas.empty()) {
-        propozitii.push_back(ramas);
-    }
-    return propozitii;
-}
-
-double calculeaza_lungime_medie_propozitii(const vector<string>& propozitii) {
-    if (propozitii.empty()) return 0.0;
-    int total_cuvinte = 0;
-    for (size_t i = 0; i < propozitii.size(); i++) {
-        total_cuvinte += numara_cuvinte(propozitii[i]);
-    }
-    double medie = (double)total_cuvinte / (double)propozitii.size();
-    return round(medie * 100.0) / 100.0;
-}
-
-RezultatPropozitieMax gaseste_propozitia_cea_mai_lunga(const vector<string>& propozitii) {
-    RezultatPropozitieMax rez{"", 0, 0};
-    for (size_t i = 0; i < propozitii.size(); i++) {
-        int nr_cuv = numara_cuvinte(propozitii[i]);
-        int nr_car = (int)propozitii[i].size();
-        if (nr_cuv > rez.numar_cuvinte || (nr_cuv == rez.numar_cuvinte && nr_car > rez.numar_caractere)) {
-            rez.propozitie = propozitii[i];
-            rez.numar_cuvinte = nr_cuv;
-            rez.numar_caractere = nr_car;
+            int cod = (c + deplasare) % 256;
+            if (cod < 0) cod += 256;
+            rez += (char)cod;
         }
     }
     return rez;
 }
 
-AnalizaPropozitii analizeaza_propozitii(const string& text) {
-    AnalizaPropozitii ap;
-    ap.propozitii = imparte_in_propozitii(text);
-    ap.numar_propozitii = (int)ap.propozitii.size();
-    ap.lungime_medie_cuvinte = calculeaza_lungime_medie_propozitii(ap.propozitii);
-    RezultatPropozitieMax pmax = gaseste_propozitia_cea_mai_lunga(ap.propozitii);
-    ap.propozitie_maxima = pmax.propozitie;
-    ap.cuvinte_propozitie_maxima = pmax.numar_cuvinte;
-    ap.caractere_propozitie_maxima = pmax.numar_caractere;
-    return ap;
+// Operatia inversa codificarii: scade 'deplasare' din codul ASCII
+string decodifica_text(string text, int deplasare = 3) {
+    return codifica_text(text, -deplasare);
 }
 
 // ==============================================================================
-// F. SORTAREA LINIILOR SI PROPOZITIILOR DUPA LUNGIME (1 punct)
+// E. STATISTICA TEXTUALA (2 puncte) - Fiecare calcul prin procedura separata
 // ==============================================================================
 
-vector<string> imparte_in_linii(const string& text) {
+// 1. Numarul total de cuvinte
+int numara_cuvinte(string text) {
+    return (int)extrage_cuvinte(text).size();
+}
+
+// 2. Numarul de caractere (cu sau fara spatii)
+int numara_caractere(string text, bool cu_spatii = true) {
+    if (cu_spatii) return (int)text.size();
+    int nr = 0;
+    for (int i = 0; i < (int)text.size(); i++) {
+        if (!isspace((unsigned char)text[i])) nr++;
+    }
+    return nr;
+}
+
+// 3. Numarul de linii din text
+int numara_linii(string text) {
+    if (text.empty()) return 0;
+    int linii = 1;
+    for (int i = 0; i < (int)text.size(); i++) {
+        if (text[i] == '\n' && i + 1 < (int)text.size()) {
+            linii++;
+        }
+    }
+    return linii;
+}
+
+// 4. Numarul de cuvinte unice (distincte)
+int numara_cuvinte_unice(string text) {
+    vector<string> cuvinte = extrage_cuvinte(text);
+    set<string> unice;
+    for (int i = 0; i < (int)cuvinte.size(); i++) {
+        unice.insert(cuvinte[i]);
+    }
+    return (int)unice.size();
+}
+
+// ==============================================================================
+// D. ANALIZA PROPOZITIILOR (2 puncte) - Fiecare operatie ca procedura separata
+// ==============================================================================
+
+// 1. Imparte textul in propozitii (dupa '.', '!', '?' sau linie noua)
+vector<string> imparte_in_propozitii(string text) {
+    vector<string> propozitii;
+    string cur = "";
+
+    for (int i = 0; i < (int)text.size(); i++) {
+        char c = text[i];
+        if (c == '\n') {
+            string p = curata_spatii(cur);
+            if (!p.empty()) propozitii.push_back(p);
+            cur = "";
+        } else if (c == '.' || c == '!' || c == '?') {
+            cur += c;
+            if (i + 1 >= (int)text.size() || isspace((unsigned char)text[i + 1])) {
+                string p = curata_spatii(cur);
+                if (!p.empty()) propozitii.push_back(p);
+                cur = "";
+            }
+        } else {
+            cur += c;
+        }
+    }
+    string ramas = curata_spatii(cur);
+    if (!ramas.empty()) propozitii.push_back(ramas);
+    return propozitii;
+}
+
+// 2. Calculeaza lungimea medie a propozitiilor (in cuvinte)
+double calculeaza_lungime_medie_propozitii(vector<string> propozitii) {
+    if (propozitii.empty()) return 0.0;
+    int total_cuvinte = 0;
+    for (int i = 0; i < (int)propozitii.size(); i++) {
+        total_cuvinte += numara_cuvinte(propozitii[i]);
+    }
+    return (double)total_cuvinte / (double)propozitii.size();
+}
+
+// 3. Gaseste si returneaza propozitia cea mai lunga (dupa numarul de cuvinte)
+string gaseste_propozitia_cea_mai_lunga(vector<string> propozitii, int& max_cuvinte) {
+    string prop_max = "";
+    max_cuvinte = 0;
+
+    for (int i = 0; i < (int)propozitii.size(); i++) {
+        int nr_cuv = numara_cuvinte(propozitii[i]);
+        if (nr_cuv > max_cuvinte || (nr_cuv == max_cuvinte && propozitii[i].size() > prop_max.size())) {
+            max_cuvinte = nr_cuv;
+            prop_max = propozitii[i];
+        }
+    }
+    return prop_max;
+}
+
+// ==============================================================================
+// F. SORTAREA LINIILOR DUPA LUNGIME (1 punct)
+// ==============================================================================
+
+// Imparte textul in linii individuale (pentru sortare)
+vector<string> imparte_in_linii(string text) {
     vector<string> linii;
     istringstream iss(text);
     string linie;
     while (getline(iss, linie)) {
-        if (!linie.empty() && linie.back() == '\r') {
-            linie.pop_back();
+        if (!linie.empty() && linie.back() == '\r') linie.pop_back();
+        if (!curata_spatii(linie).empty()) {
+            linii.push_back(linie);
         }
-        linii.push_back(linie);
     }
     return linii;
 }
 
-vector<string> sorteaza_linii_dupa_lungime(const string& text, bool descrescator = false, bool elimina_goale = false) {
-    if (text.empty()) return {};
+// Sorteaza liniile crescator sau descrescator folosind metoda bulelor (Bubble Sort)
+vector<string> sorteaza_linii_dupa_lungime(string text, bool descrescator = false) {
     vector<string> linii = imparte_in_linii(text);
+    int n = (int)linii.size();
 
-    if (elimina_goale) {
-        vector<string> filtrate;
-        for (size_t i = 0; i < linii.size(); i++) {
-            if (!trim_text(linii[i]).empty()) {
-                filtrate.push_back(linii[i]);
+    for (int i = 0; i < n - 1; i++) {
+        for (int j = 0; j < n - i - 1; j++) {
+            bool trebuie_schimbat = descrescator
+                ? (linii[j].size() < linii[j + 1].size())
+                : (linii[j].size() > linii[j + 1].size());
+
+            if (trebuie_schimbat) {
+                string temp = linii[j];
+                linii[j] = linii[j + 1];
+                linii[j + 1] = temp;
             }
         }
-        linii = filtrate;
     }
-
-    stable_sort(linii.begin(), linii.end(), [descrescator](const string& a, const string& b) {
-        if (descrescator) return a.size() > b.size();
-        return a.size() < b.size();
-    });
     return linii;
 }
 
-vector<string> sorteaza_propozitii_dupa_lungime(const string& text, bool descrescator = false, const string& criteriu = "caractere") {
-    vector<string> propozitii = imparte_in_propozitii(text);
-    stable_sort(propozitii.begin(), propozitii.end(), [descrescator, &criteriu](const string& a, const string& b) {
-        size_t la = (criteriu == "cuvinte") ? (size_t)numara_cuvinte(a) : a.size();
-        size_t lb = (criteriu == "cuvinte") ? (size_t)numara_cuvinte(b) : b.size();
-        if (descrescator) return la > lb;
-        return la < lb;
-    });
-    return propozitii;
-}
-
 // ==============================================================================
-// G. GESTIUNE FISIERE SI TEXT (REDACTOR DE TEXT PROCEDURAL)
+// G. LUCRUL CU FISIERE SI EDITARE IN CONSOLA
 // ==============================================================================
 
-bool deschide_fisier(const string& cale) {
+void deschide_fisier(string cale) {
     ifstream f(cale);
     if (!f.is_open()) {
         cout << "[EROARE] Nu s-a putut deschide fisierul: " << cale << "\n";
-        return false;
+        return;
     }
     stringstream ss;
     ss << f.rdbuf();
     TEXT_CURENT = ss.str();
     CALE_FISIER_CURENT = cale;
     TEXT_MODIFICAT = false;
-    cout << "[OK] Fisier incarcat: " << cale << " (" << TEXT_CURENT.size() << " octeti)\n";
-    return true;
+    cout << "[OK] Fisier incarcat cu succes!\n";
 }
 
-bool salveaza_fisier(const string& cale) {
-    if (cale.empty()) {
-        cout << "[EROARE] Nu este specificata o cale de fisier!\n";
-        return false;
-    }
+void salveaza_fisier(string cale) {
     ofstream f(cale);
     if (!f.is_open()) {
-        cout << "[EROARE] Nu s-a putut scrie in fisierul: " << cale << "\n";
-        return false;
+        cout << "[EROARE] Nu s-a putut salva in fisierul: " << cale << "\n";
+        return;
     }
     f << TEXT_CURENT;
     CALE_FISIER_CURENT = cale;
     TEXT_MODIFICAT = false;
     cout << "[OK] Text salvat cu succes in: " << cale << "\n";
-    return true;
 }
 
-void editeaza_text_consola() {
-    cout << "\nIntrodu noul text (termina cu o linie ce contine doar 'END'):\n";
+void editeaza_text() {
+    cout << "Introdu textul nou (scrie 'END' pe o linie noua cand termini):\n";
     string nou = "";
     string linie;
     while (getline(cin, linie)) {
@@ -479,7 +364,7 @@ void editeaza_text_consola() {
     }
     TEXT_CURENT = nou;
     TEXT_MODIFICAT = true;
-    cout << "[OK] Text actualizat in editor (" << TEXT_CURENT.size() << " caractere).\n";
+    cout << "[OK] Text actualizat!\n";
 }
 
 // ==============================================================================
@@ -487,9 +372,9 @@ void editeaza_text_consola() {
 // ==============================================================================
 
 void ruleaza_teste_automate() {
-    cout << "============================================================\n";
-    cout << "RULARE SUITA DE TESTE AUTOMATE PENTRU PROCEDURILE DIN LAB 1\n";
-    cout << "============================================================\n";
+    cout << "====================================================\n";
+    cout << " TESTE AUTOMATE - LAB 1 PARADIGMA PROCEDURALA (C++)\n";
+    cout << "====================================================\n";
 
     string text_test =
         "Ana are mere rosii si dulci. "
@@ -499,213 +384,165 @@ void ruleaza_teste_automate() {
         "Da, merele sunt delicioase.";
 
     // Test A: Frecventa
-    cout << "\n[TEST A] Frecventa cuvinte si expresii...\n";
-    RezultatFrecventa rf_c = gaseste_cel_mai_frecvent(text_test, "cuvant");
-    cout << "  -> Cel mai frecvent cuvant: '" << rf_c.element << "' cu " << rf_c.aparitii << " aparitii.\n";
-    assert(rf_c.element == "mere");
-    assert(rf_c.aparitii == 3);
-
-    RezultatFrecventa rf_e = gaseste_cel_mai_frecvent(text_test, "expresie", 2);
-    cout << "  -> Cea mai frecventa expresie (2 cuv): '" << rf_e.element << "' cu " << rf_e.aparitii << " aparitii.\n";
-    assert(rf_e.aparitii >= 1);
-
-    int nr_sp = calculeaza_frecventa_expresie_specifica(text_test, "are mere");
-    cout << "  -> Frecventa expresiei 'are mere': " << nr_sp << "\n";
-    assert(nr_sp == 2);
-    cout << "  [OK] Testul A a trecut cu succes.\n";
+    int nr_c = 0, nr_e = 0;
+    string cuv = gaseste_cel_mai_frecvent(text_test, "cuvant", 1, nr_c);
+    string exp = gaseste_cel_mai_frecvent(text_test, "expresie", 2, nr_e);
+    assert(cuv == "mere" && nr_c == 3);
+    assert(nr_e >= 1);
+    assert(numara_expresie_specifica(text_test, "are mere") == 2);
+    cout << "  [OK] A. Cel mai frecvent: '" << cuv << "' (" << nr_c << "x), expresie: '" << exp << "'\n";
 
     // Test B: Hash
-    cout << "\n[TEST B] Hash-ul textului...\n";
-    uint64_t h_djb2 = hash_text("test", "djb2");
-    uint64_t h_ascii = hash_text("ABC", "ascii_sum");
-    cout << "  -> Hash DJB2 ('test'): " << h_djb2 << " (0x" << hex << h_djb2 << dec << ")\n";
-    cout << "  -> Hash ASCII sum ('ABC'): " << h_ascii << " (A=65 + B=66 + C=67 = 198)\n";
-    assert(h_ascii == 65 + 66 + 67);
-    assert(h_djb2 > 0);
-    cout << "  [OK] Testul B a trecut cu succes.\n";
+    assert(hash_text("ABC", "ascii_sum") == 198);
+    assert(hash_text("test", "djb2") > 0);
+    cout << "  [OK] B. Hash ASCII('ABC') = 198, DJB2('test') = " << hash_text("test", "djb2") << "\n";
 
-    // Test C: Codificare si Decodificare
-    cout << "\n[TEST C] Codificare si decodificare...\n";
-    string original = "Programare Procedurala 2026!\nLinia a doua.";
-    string codificat, decodificat;
-    bool ok_cod = verifica_codificare_decodificare(original, 5, codificat, decodificat);
-    cout << "  -> Original   : Programare Procedurala 2026! (2 linii)\n";
-    cout << "  -> Decodificat coincide cu originalul: " << (ok_cod ? "DA" : "NU") << "\n";
-    assert(ok_cod);
-    cout << "  [OK] Testul C a trecut cu succes.\n";
+    // Test C: Codificare & Decodificare
+    string orig = "Programare Procedurala 2026!\nLinia 2.";
+    string cod = codifica_text(orig, 5);
+    string decod = decodifica_text(cod, 5);
+    assert(decod == orig);
+    cout << "  [OK] C. Codificare si decodificare corecta.\n";
 
-    // Test D: Analiza propozitiilor
-    cout << "\n[TEST D] Analiza propozitiilor...\n";
-    AnalizaPropozitii ap = analizeaza_propozitii(text_test);
-    cout << "  -> Propozitii identificate: " << ap.numar_propozitii << "\n";
-    cout << "  -> Lungime medie: " << ap.lungime_medie_cuvinte << " cuvinte/propozitie\n";
-    cout << "  -> Propozitia cea mai lunga: '" << ap.propozitie_maxima << "' (" << ap.cuvinte_propozitie_maxima << " cuvinte)\n";
-    assert(ap.numar_propozitii == 5);
-    assert(ap.cuvinte_propozitie_maxima > 0);
-    cout << "  [OK] Testul D a trecut cu succes.\n";
+    // Test D: Analiza propozitii
+    vector<string> props = imparte_in_propozitii(text_test);
+    int max_cuv = 0;
+    string pmax = gaseste_propozitia_cea_mai_lunga(props, max_cuv);
+    double medie = calculeaza_lungime_medie_propozitii(props);
+    assert(props.size() == 5 && max_cuv == 7 && medie == 5.0);
+    cout << "  [OK] D. Propozitii: " << props.size() << ", medie: " << medie << ", max: " << max_cuv << " cuvinte\n";
 
-    // Test E: Statistica textuala
-    cout << "\n[TEST E] Statistica textuala...\n";
-    StatisticiText st = calculeaza_statistici_text(text_test);
-    cout << "  -> Total cuvinte       : " << st.numar_cuvinte << "\n";
-    cout << "  -> Caractere cu spatii : " << st.numar_caractere_cu_spatii << "\n";
-    cout << "  -> Caractere fara spatii: " << st.numar_caractere_fara_spatii << "\n";
-    cout << "  -> Linii               : " << st.numar_linii << "\n";
-    cout << "  -> Cuvinte unice       : " << st.numar_cuvinte_unice << "\n";
-    assert(st.numar_cuvinte > 0 && st.numar_caractere_cu_spatii > st.numar_caractere_fara_spatii);
-    assert(st.numar_linii >= 1 && st.numar_cuvinte_unice <= st.numar_cuvinte);
-    cout << "  [OK] Testul E a trecut cu succes.\n";
+    // Test E: Statistici
+    assert(numara_cuvinte(text_test) == 25);
+    assert(numara_caractere(text_test, true) == 147);
+    assert(numara_caractere(text_test, false) == 123);
+    assert(numara_linii(text_test) == 1);
+    assert(numara_cuvinte_unice(text_test) == 19);
+    cout << "  [OK] E. Statistici: 25 cuvinte (19 unice), 147 caractere.\n";
 
-    // Test F: Sortare dupa lungime
-    cout << "\n[TEST F] Sortarea liniilor si propozitiilor dupa lungime...\n";
-    string text_linii = "O linie scurta\nAceasta este o linie mult mai lunga decat prima\nMedie";
-    vector<string> sort_cresc = sorteaza_linii_dupa_lungime(text_linii, false);
-    vector<string> sort_desc = sorteaza_linii_dupa_lungime(text_linii, true);
-    assert(sort_cresc.front().size() <= sort_cresc.back().size());
-    assert(sort_desc.front().size() >= sort_desc.back().size());
+    // Test F: Sortare linii
+    string lin = "Scurta\nAceasta este cea mai lunga linie\nMedie";
+    vector<string> s_cresc = sorteaza_linii_dupa_lungime(lin, false);
+    assert(s_cresc[0] == "Medie" && s_cresc[2] == "Aceasta este cea mai lunga linie");
+    cout << "  [OK] F. Sortarea liniilor dupa lungime functioneaza.\n";
 
-    vector<string> prop_sort = sorteaza_propozitii_dupa_lungime(text_test, false);
-    assert(prop_sort.front().size() <= prop_sort.back().size());
-    cout << "  [OK] Testul F a trecut cu succes.\n";
-
-    cout << "\n============================================================\n";
-    cout << "TOATE CELE 6 TESTE PROCEDURALE AU FOST TRECUTE CU SUCCES!\n";
-    cout << "============================================================\n";
+    cout << "\nTOATE TESTELE AU TRECUT 100%!\n";
 }
 
 // ==============================================================================
-// INTERFATA PROCEDURALA IN CONSOLA (MENIU REDACTOR DE TEXT)
+// MENIU PRINCIPAL
 // ==============================================================================
-
-void afiseaza_meniu() {
-    string nume_fisier = CALE_FISIER_CURENT.empty() ? "Text Demo / Nesalvat" : CALE_FISIER_CURENT;
-    cout << "\n============================================================\n";
-    cout << "     REDACTOR DE TEXT PROCEDURAL (LAB 1 - C++)              \n";
-    cout << "  Fisier: " << nume_fisier << (TEXT_MODIFICAT ? " *" : "") << "\n";
-    cout << "============================================================\n";
-    cout << " 1. Afiseaza textul curent\n";
-    cout << " 2. Introdu / editeaza text manual\n";
-    cout << " 3. Deschide fisier text\n";
-    cout << " 4. Salveaza text in fisier\n";
-    cout << " 5. [a] Cel mai frecvent cuvant / expresie\n";
-    cout << " 6. [b] Hash-ul textului (DJB2 & Suma ASCII)\n";
-    cout << " 7. [c] Codificare / Decodificare text (Cezar ASCII)\n";
-    cout << " 8. [d] Analiza propozitiilor\n";
-    cout << " 9. [e] Statistica textuala completa\n";
-    cout << "10. [f] Sortarea liniilor / propozitiilor dupa lungime\n";
-    cout << "11. Ruleaza toate analizele (a - f) pe textul curent\n";
-    cout << " 0. Iesire\n";
-    cout << "------------------------------------------------------------\n";
-    cout << "Alege optiunea: ";
-}
 
 void ruleaza_toate_analizele() {
-    cout << "\n--- [A] CEL MAI FRECVENT CUVANT / EXPRESIE ---\n";
-    RezultatFrecventa rc = gaseste_cel_mai_frecvent(TEXT_CURENT, "cuvant");
-    RezultatFrecventa re = gaseste_cel_mai_frecvent(TEXT_CURENT, "expresie", 2);
-    cout << "Cel mai frecvent cuvant  : '" << rc.element << "' (" << rc.aparitii << " aparitii)\n";
-    cout << "Cea mai frecventa expresie: '" << re.element << "' (" << re.aparitii << " aparitii)\n";
+    int nr_c = 0, nr_e = 0;
+    string cuv = gaseste_cel_mai_frecvent(TEXT_CURENT, "cuvant", 1, nr_c);
+    string exp = gaseste_cel_mai_frecvent(TEXT_CURENT, "expresie", 2, nr_e);
+    cout << "\n[A] Cel mai frecvent cuvant  : '" << cuv << "' (" << nr_c << " aparitii)\n";
+    cout << "    Cea mai frecventa expresie: '" << exp << "' (" << nr_e << " aparitii)\n";
 
-    cout << "\n--- [B] HASH-UL TEXTULUI ---\n";
-    cout << "Hash DJB2      : " << hash_text(TEXT_CURENT, "djb2") << "\n";
-    cout << "Hash ASCII sum : " << hash_text(TEXT_CURENT, "ascii_sum") << "\n";
+    cout << "\n[B] Hash DJB2: " << hash_text(TEXT_CURENT, "djb2")
+         << " | Hash ASCII: " << hash_text(TEXT_CURENT, "ascii_sum") << "\n";
 
-    cout << "\n--- [C] CODIFICARE SI DECODIFICARE ---\n";
-    string cod, decod;
-    bool ok = verifica_codificare_decodificare(TEXT_CURENT, ULTIMA_DEPLASARE, cod, decod);
-    cout << "Deplasare: " << ULTIMA_DEPLASARE << " | Verificare decodificare exacta: " << (ok ? "CORECT" : "GRESIT") << "\n";
+    string cod = codifica_text(TEXT_CURENT, ULTIMA_DEPLASARE);
+    string decod = decodifica_text(cod, ULTIMA_DEPLASARE);
+    cout << "\n[C] Codificare/Decodificare (pas " << ULTIMA_DEPLASARE << "): "
+         << (decod == TEXT_CURENT ? "CORECT" : "GRESIT") << "\n";
 
-    cout << "\n--- [D] ANALIZA PROPOZITIILOR ---\n";
-    AnalizaPropozitii ap = analizeaza_propozitii(TEXT_CURENT);
-    cout << "Numar propozitii     : " << ap.numar_propozitii << "\n";
-    cout << "Lungime medie cuvinte: " << ap.lungime_medie_cuvinte << "\n";
-    cout << "Propozitia cea mai lunga: \"" << ap.propozitie_maxima << "\" (" << ap.cuvinte_propozitie_maxima << " cuvinte)\n";
+    vector<string> props = imparte_in_propozitii(TEXT_CURENT);
+    int max_cuv = 0;
+    string pmax = gaseste_propozitia_cea_mai_lunga(props, max_cuv);
+    cout << "\n[D] Propozitii: " << props.size()
+         << " | Lungime medie: " << calculeaza_lungime_medie_propozitii(props) << " cuvinte\n";
+    cout << "    Cea mai lunga: \"" << pmax << "\" (" << max_cuv << " cuvinte)\n";
 
-    cout << "\n--- [E] STATISTICA TEXTUALA ---\n";
-    StatisticiText st = calculeaza_statistici_text(TEXT_CURENT);
-    cout << "Cuvinte totale        : " << st.numar_cuvinte << "\n";
-    cout << "Cuvinte unice         : " << st.numar_cuvinte_unice << "\n";
-    cout << "Caractere (cu spatii) : " << st.numar_caractere_cu_spatii << "\n";
-    cout << "Caractere (fara spatii): " << st.numar_caractere_fara_spatii << "\n";
-    cout << "Linii                 : " << st.numar_linii << "\n";
+    cout << "\n[E] Statistici: " << numara_cuvinte(TEXT_CURENT) << " cuvinte ("
+         << numara_cuvinte_unice(TEXT_CURENT) << " unice), "
+         << numara_caractere(TEXT_CURENT, true) << " caractere ("
+         << numara_caractere(TEXT_CURENT, false) << " fara spatii), "
+         << numara_linii(TEXT_CURENT) << " linii\n";
 
-    cout << "\n--- [F] SORTARE LINII DUPA LUNGIME (CRESCATOR) ---\n";
-    vector<string> sortate = sorteaza_linii_dupa_lungime(TEXT_CURENT, false, true);
-    for (size_t i = 0; i < sortate.size(); i++) {
-        cout << "  [" << setw(2) << sortate[i].size() << " car] " << sortate[i] << "\n";
+    cout << "\n[F] Linii sortate crescator dupa lungime:\n";
+    vector<string> sortate = sorteaza_linii_dupa_lungime(TEXT_CURENT, false);
+    for (int i = 0; i < (int)sortate.size(); i++) {
+        cout << "    [" << sortate[i].size() << " car] " << sortate[i] << "\n";
     }
 }
 
 int main(int argc, char* argv[]) {
-    if (argc > 1 && (string(argv[1]) == "--test" || string(argv[1]) == "-t" || string(argv[1]) == "test")) {
+    if (argc > 1 && (string(argv[1]) == "--test" || string(argv[1]) == "-t")) {
         ruleaza_teste_automate();
         return 0;
     }
 
-    TEXT_CURENT = TEXT_EXEMPLU_DEMO;
+    TEXT_CURENT = TEXT_DEMO;
 
     while (true) {
-        afiseaza_meniu();
+        cout << "\n================ REDACTOR PROCEDURAL (LAB 1) ================\n";
+        cout << "Fisier: " << (CALE_FISIER_CURENT.empty() ? "Text Demo" : CALE_FISIER_CURENT)
+             << (TEXT_MODIFICAT ? " *" : "") << "\n";
+        cout << " 1. Afiseaza textul\n";
+        cout << " 2. Editeaza textul de la tastatura\n";
+        cout << " 3. Deschide fisier | 4. Salveaza fisier\n";
+        cout << " 5. [a] Frecventa cuvant / expresie\n";
+        cout << " 6. [b] Hash text (DJB2 & ASCII)\n";
+        cout << " 7. [c] Codificare / Decodificare\n";
+        cout << " 8. [d] Analiza propozitiilor\n";
+        cout << " 9. [e] Statistica textuala\n";
+        cout << "10. [f] Sortare linii dupa lungime\n";
+        cout << "11. Ruleaza toate analizele (a - f)\n";
+        cout << " 0. Iesire\n";
+        cout << "Optiunea: ";
+
         int opt;
         if (!(cin >> opt)) break;
         cin.ignore();
 
-        if (opt == 0) {
-            cout << "La revedere!\n";
-            break;
-        } else if (opt == 1) {
-            cout << "\n--- TEXT CURENT ---\n" << TEXT_CURENT << "\n-------------------\n";
-        } else if (opt == 2) {
-            editeaza_text_consola();
-        } else if (opt == 3) {
-            cout << "Calea fisierului de deschis: ";
-            string cale;
-            getline(cin, cale);
-            deschide_fisier(cale);
+        if (opt == 0) break;
+        else if (opt == 1) cout << "\n" << TEXT_CURENT << "\n";
+        else if (opt == 2) editeaza_text();
+        else if (opt == 3) {
+            cout << "Calea fisierului: ";
+            string c; getline(cin, c);
+            deschide_fisier(c);
         } else if (opt == 4) {
-            cout << "Calea fisierului de salvat: ";
-            string cale;
-            getline(cin, cale);
-            salveaza_fisier(cale);
+            cout << "Calea fisierului: ";
+            string c; getline(cin, c);
+            salveaza_fisier(c);
         } else if (opt == 5) {
-            RezultatFrecventa rc = gaseste_cel_mai_frecvent(TEXT_CURENT, "cuvant");
-            RezultatFrecventa re = gaseste_cel_mai_frecvent(TEXT_CURENT, "expresie", 2);
-            cout << "Cel mai frecvent cuvant   : '" << rc.element << "' (" << rc.aparitii << " aparitii)\n";
-            cout << "Cea mai frecventa expresie: '" << re.element << "' (" << re.aparitii << " aparitii)\n";
+            int nc = 0, ne = 0;
+            string cuv = gaseste_cel_mai_frecvent(TEXT_CURENT, "cuvant", 1, nc);
+            string exp = gaseste_cel_mai_frecvent(TEXT_CURENT, "expresie", 2, ne);
+            cout << "Cuvant maxim  : '" << cuv << "' (" << nc << ")\n";
+            cout << "Expresie maxima: '" << exp << "' (" << ne << ")\n";
         } else if (opt == 6) {
-            cout << "Hash DJB2     : " << hash_text(TEXT_CURENT, "djb2") << "\n";
-            cout << "Hash ASCII sum: " << hash_text(TEXT_CURENT, "ascii_sum") << "\n";
+            cout << "DJB2: " << hash_text(TEXT_CURENT, "djb2")
+                 << " | ASCII: " << hash_text(TEXT_CURENT, "ascii_sum") << "\n";
         } else if (opt == 7) {
-            cout << "Deplasare ASCII [implicit 3]: ";
-            string dep_str;
-            getline(cin, dep_str);
-            int dep = dep_str.empty() ? 3 : stoi(dep_str);
-            ULTIMA_DEPLASARE = dep;
-            string cod, decod;
-            bool ok = verifica_codificare_decodificare(TEXT_CURENT, dep, cod, decod);
-            cout << "Text codificat:\n" << cod << "\n";
-            cout << "Decodificat corect inapoi: " << (ok ? "DA" : "NU") << "\n";
+            cout << "Deplasare [3]: ";
+            string d; getline(cin, d);
+            int pas = d.empty() ? 3 : stoi(d);
+            string cod = codifica_text(TEXT_CURENT, pas);
+            cout << "Codificat:\n" << cod << "\nDecodificat identic: "
+                 << (decodifica_text(cod, pas) == TEXT_CURENT ? "DA" : "NU") << "\n";
         } else if (opt == 8) {
-            AnalizaPropozitii ap = analizeaza_propozitii(TEXT_CURENT);
-            cout << "Total propozitii     : " << ap.numar_propozitii << "\n";
-            cout << "Lungime medie cuvinte: " << ap.lungime_medie_cuvinte << "\n";
-            cout << "Cea mai lunga        : \"" << ap.propozitie_maxima << "\" (" << ap.cuvinte_propozitie_maxima << " cuvinte)\n";
+            vector<string> props = imparte_in_propozitii(TEXT_CURENT);
+            int max_c = 0;
+            string pmax = gaseste_propozitia_cea_mai_lunga(props, max_c);
+            cout << "Propozitii: " << props.size() << " | Medie: "
+                 << calculeaza_lungime_medie_propozitii(props) << "\nCea mai lunga: " << pmax << "\n";
         } else if (opt == 9) {
-            StatisticiText st = calculeaza_statistici_text(TEXT_CURENT);
-            cout << "Cuvinte       : " << st.numar_cuvinte << "\n";
-            cout << "Cuvinte unice : " << st.numar_cuvinte_unice << "\n";
-            cout << "Caractere (+) : " << st.numar_caractere_cu_spatii << "\n";
-            cout << "Caractere (-) : " << st.numar_caractere_fara_spatii << "\n";
-            cout << "Linii         : " << st.numar_linii << "\n";
+            cout << "Cuvinte: " << numara_cuvinte(TEXT_CURENT)
+                 << " | Unice: " << numara_cuvinte_unice(TEXT_CURENT)
+                 << " | Caractere: " << numara_caractere(TEXT_CURENT, true)
+                 << " (" << numara_caractere(TEXT_CURENT, false) << " fara spatii)"
+                 << " | Linii: " << numara_linii(TEXT_CURENT) << "\n";
         } else if (opt == 10) {
-            vector<string> sortate = sorteaza_linii_dupa_lungime(TEXT_CURENT, false, true);
-            for (size_t i = 0; i < sortate.size(); i++) {
-                cout << "  [" << setw(2) << sortate[i].size() << " car] " << sortate[i] << "\n";
+            vector<string> sortate = sorteaza_linii_dupa_lungime(TEXT_CURENT, false);
+            for (int i = 0; i < (int)sortate.size(); i++) {
+                cout << "  [" << sortate[i].size() << "] " << sortate[i] << "\n";
             }
         } else if (opt == 11) {
             ruleaza_toate_analizele();
-        } else {
-            cout << "Optiune invalida!\n";
         }
     }
     return 0;

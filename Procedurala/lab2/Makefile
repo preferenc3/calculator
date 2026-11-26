@@ -1,13 +1,12 @@
 CXX = clang++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2
-LDFLAGS = -lcurl
 TARGET = main
 SRC = main.cpp
 
 all: $(TARGET)
 
 $(TARGET): $(SRC)
-	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
 
 run: $(TARGET)
 	./$(TARGET)
